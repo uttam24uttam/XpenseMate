@@ -1,0 +1,65 @@
+.filter {
+    box-shadow: 0 0 3px gray;
+    padding: 10px 2px;
+    border-radius: 10px;
+}
+
+.transaction-form label {
+
+    color: rgb(20, 18, 18);
+}
+
+.transaction-form input:hover {
+    border: 1px solid #546E7A !important;
+}
+
+.transaction-form input {
+    border: 1px solid #546E7A !important;
+}
+
+.transaction-form input:focus {
+    border: 1px solid #546E7A !important;
+}
+
+.ant-select-selector:focus {
+    border: 1px solid #546E7A !important;
+
+}
+
+.ant-select-selector:hover {
+    border: 1px solid #546E7A !important;
+
+}
+
+.ant-select-selector {
+    border: 1px solid #546E7A !important;
+
+}
+
+.ant-modal-title {
+    margin-bottom: 15px !important;
+}
+
+.anticon svg {
+
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.active icon {
+
+    color: black;
+}
+
+.inactive-icon {
+
+    color: grey;
+}
+
+.view-switch {
+
+    border: 1px solid black;
+    border-radius: 7px;
+    padding: 5px 10px;
+
+}
