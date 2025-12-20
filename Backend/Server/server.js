@@ -45,7 +45,7 @@ app.use(express.json({ limit: '10kb' }));
 // Public routes
 app.use("/api/users/", userRoute);
 
-// Protected routes
+// Protected routes (friend-transactions balance endpoint allows internal secret bypass via middleware check)
 app.use("/api/transactions/", protect, transactionRoute);
 app.use("/api/friends/", protect, friendRoute);
 app.use("/api/friend-transactions/", protect, friendTransactionRoute);

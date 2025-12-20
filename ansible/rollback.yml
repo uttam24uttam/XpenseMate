@@ -1,0 +1,28 @@
+---
+# Playbook to rollback deployment
+- name: Rollback Splitwise Application
+  hosts: k8s_master
+  become: yes
+  
+  vars:
+    namespace: "splitwise"
+    
+  tasks:
+    - name: Rollback backend deployment
+      command: kubectl rollout undo deployment/backend -n {{ namespace }}
+      register: backend_rollback
+
+    - name: Rollback frontend deployment
+      command: kubectl rollout undo deployment/frontend -n {{ namespace }}
+      register: frontend_rollback
+
+    - name: Wait for rollback to complete
+      command: kubectl rollout status deployment/{{ item }} -n {{ namespace }}
+      loop:
+        - backend
+        - frontend
+      register: rollback_status
+
+    - name: Display rollback status
+      debug:
+        msg: "Rollback completed: {{ rollback_status }}"

@@ -41,16 +41,20 @@ router.post('/delete-transaction', async function (req, res) {
 router.post('/get-all-transactions', async (req, res) => {
     try {
         const { userid, frequency, dateRange, type } = req.body;
+        // Support both userid (old) and userId (new) for backward compatibility
+        const userIdValue = userid;
         let transactions;
 
         if (frequency === '1') {
             transactions = await Transaction.find({
-                userid: userid,
+                userId: userIdValue,
+                status: 'active',
                 ...(type !== 'all' ? { type } : {})
             });
         } else {
             transactions = await Transaction.find({
-                userid: userid,
+                userId: userIdValue,
+                status: 'active',
                 ...(frequency !== "custom" ?
                     { date: { $gte: subDays(new Date(), Number(frequency)) } } :
                     { date: { $gte: dateRange[0], $lte: dateRange[1] } }

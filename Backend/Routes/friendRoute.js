@@ -5,29 +5,27 @@ import User from "../models/user.js";
 import moment from "moment";
 import FriendBalance from '../models/FriendBalance.js';
 
-
 const router = express.Router();
 
 
 
 //ADD FRIEND
 router.post('/add-friend', async (req, res) => {
-
-    console.log(" add friend being hit-1")
+    console.log(" add friend being hit-1");
 
     const { userId, friendEmail } = req.body;
 
-    console.log(" aadd friend being hit -2")
+    console.log(" add friend being hit -2");
 
     try {
-        const loggedInUser = await usermodel.findById(userId);  //fetching the logged in user
+        const loggedInUser = await usermodel.findById(userId);
         if (!loggedInUser) {
             return res.status(404).json({ message: "Logged-in user not found" });
         }
-        console.log("add friend -3")
+        console.log("add friend -3");
 
         const friend = await usermodel.findOne({ email: friendEmail });
-        console.log(friend)
+        console.log(friend);
         if (!friend) {
             return res.status(404).json({ message: "Friend not found" });
         }
@@ -37,26 +35,30 @@ router.post('/add-friend', async (req, res) => {
             return res.status(400).json({ message: "Cannot add yourself as a friend" });
         }
 
-        // Ensure friends array exists and check if friend already added (use ObjectId equality)
-        if (Array.isArray(loggedInUser.friends) && loggedInUser.friends.some(f => f.equals(friend._id))) {
+        // Check if friendship already exists
+        const [smallerId, largerId] = [userId, friend._id.toString()].sort();
+        const existingFriendship = await FriendBalance.findOne({
+            user1: smallerId,
+            user2: largerId,
+            status: 'active'
+        });
+
+        if (existingFriendship) {
             return res.status(400).json({ message: "Friend already added" });
         }
 
-        loggedInUser.friends = loggedInUser.friends || [];
-        loggedInUser.friends.push(friend._id);
-        await loggedInUser.save();
-        console.log("add friend ----4")
-
-        // mutual Addition
-        friend.friends = friend.friends || [];
-        if (!friend.friends.some(f => f.equals(loggedInUser._id))) {
-            friend.friends.push(loggedInUser._id);
-            await friend.save();
-        }
-        console.log("add friend-----5")
+        // Create new friendship with zero balance
+        const newFriendship = new FriendBalance({
+            user1: smallerId,
+            user2: largerId,
+            balance: 0,
+            status: 'active'
+        });
+        await newFriendship.save();
+        console.log("add friend ----4");
 
         res.status(200).json({ message: "Friend added successfully", friend });
-        console.log("Mutual friendship established");
+        console.log("Friendship established");
 
     } catch (error) {
         console.error(error);
@@ -70,20 +72,34 @@ router.post('/add-friend', async (req, res) => {
 // Get Friends Route for LIST
 router.get('/get-friends/:userId', async (req, res) => {
     const { userId } = req.params;
-    console.log("getttttttt1")
+    console.log("getttttttt1");
     try {
-        console.log("getttttttt2")
+        console.log("getttttttt2");
 
-        const loggedInUser = await usermodel.findById(userId).populate('friends', 'name email');  //fetching friends array of user
-        console.log("getttttttt3")
+        // Find all friendships where user is either user1 or user2
+        const friendships = await FriendBalance.find({
+            $or: [{ user1: userId }, { user2: userId }],
+            status: 'active'
+        });
 
-        if (!loggedInUser) {
-            return res.status(404).json({ message: "User not found" });
+        console.log("getttttttt3");
+
+        if (!friendships || friendships.length === 0) {
+            return res.status(200).json([]);
         }
-        console.log("getttttttt4")
 
-        res.status(200).json(loggedInUser.friends);
-        console.log("getttttttt5")
+        // Extract friend IDs
+        const friendIds = friendships.map(f =>
+            f.user1.toString() === userId ? f.user2 : f.user1
+        );
+
+        // Fetch friend details
+        const friends = await usermodel.find({ _id: { $in: friendIds } }, 'name email');
+
+        console.log("getttttttt4");
+
+        res.status(200).json(friends);
+        console.log("getttttttt5");
 
     } catch (error) {
         console.error(error);

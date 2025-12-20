@@ -706,18 +706,20 @@ function ViewFriend() {
                     </div>
 
                     <div className="flex justify-center mt-8">
-                        <Button
-                            type="primary"
-                            onClick={() => setSettleUpModalVisible(true)}
-                            disabled={
-                                balanceMessage?.toLowerCase().includes("owes") ||
-                                balanceMessage?.toLowerCase().includes("settled")
-                            }
-                            size="large"
-                            className="bg-[#546E7A] hover:bg-[#4a5d66] text-white font-bold p-2 px-4 border border-blue-700 rounded-lg text-sm"
-                        >
-                            Settle Up
-                        </Button>
+                        <div className="space-x-4">
+                            <Button
+                                type="primary"
+                                onClick={() => setSettleUpModalVisible(true)}
+                                disabled={
+                                    balanceMessage?.toLowerCase().includes("owes") ||
+                                    balanceMessage?.toLowerCase().includes("settled")
+                                }
+                                size="large"
+                                className="bg-[#546E7A] hover:bg-[#4a5d66] text-white font-bold p-2 px-4 border border-blue-700 rounded-lg text-sm"
+                            >
+                                Settle Up
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -807,9 +809,9 @@ function ViewFriend() {
             </div>
 
             <SettleUp
-                visible={settleUpModalVisible}
+                open={settleUpModalVisible}
                 onCancel={() => setSettleUpModalVisible(false)}
-                onSettleUp={handleSettleUp}
+                onSettleUp={(amt) => { handleSettleUp(amt); setSettleUpModalVisible(false); }}
             />
         </DefaultLayout>
     );

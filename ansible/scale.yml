@@ -1,0 +1,40 @@
+---
+# Playbook to scale deployments
+- name: Scale Splitwise Deployments
+  hosts: k8s_master
+  become: yes
+  
+  vars:
+    namespace: "splitwise"
+    backend_replicas: 5
+    frontend_replicas: 3
+    
+  tasks:
+    - name: Scale backend deployment
+      kubernetes.core.k8s_scale:
+        api_version: apps/v1
+        kind: Deployment
+        name: backend
+        namespace: "{{ namespace }}"
+        replicas: "{{ backend_replicas }}"
+
+    - name: Scale frontend deployment
+      kubernetes.core.k8s_scale:
+        api_version: apps/v1
+        kind: Deployment
+        name: frontend
+        namespace: "{{ namespace }}"
+        replicas: "{{ frontend_replicas }}"
+
+    - name: Wait for scaling to complete
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: "{{ item.name }}"
+        namespace: "{{ namespace }}"
+      register: scale_status
+      until: scale_status.resources[0].status.readyReplicas | default(0) >= item.replicas
+      retries: 20
+      delay: 10
+      loop:
+        - { name: 'backend', replicas: "{{ backend_replicas }}" }
+        - { name: 'frontend', replicas: "{{ frontend_replicas }}" }

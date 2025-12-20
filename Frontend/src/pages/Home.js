@@ -190,7 +190,7 @@ function Home() {
             </div>
 
             {viewType === 'table' ? (<div className="table-analytics mt-4">
-                <Table columns={columns} dataSource={transactionData} />
+                <Table columns={columns} dataSource={transactionData} rowKey="_id" />
             </div>) : (<Analytics transactions={transactionData} />)}
 
             {showCrudTransactionModel && (

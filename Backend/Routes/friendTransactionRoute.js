@@ -2,39 +2,42 @@ import express from "express";
 import FriendTransaction from "../models/friendTransaction.js";
 import FriendBalance from "../models/FriendBalance.js";
 import User from "../models/user.js";
-// The Settlement model is no longer needed for new transactions.
-// import Settlement from "../models/Settlement.js"; 
 import Transaction from "../models/transaction.js";
 import moment from "moment";
+import { cacheUtils } from '../config/redis.js';
 
 const router = express.Router();
 
 /* ------------------------------------------
  Update or Create Friend Balance Record (No Changes)
 ------------------------------------------- */
-const updateFriendBalance = async (fromUser, toUser, amount) => {
+const updateFriendBalance = async (fromUser, toUser, amount, session = null) => {
     //from owes to
     //in friendBalance, user1 is owed by user2
-    let record = await FriendBalance.findOne({ user1: toUser, user2: fromUser });
+    let record = await FriendBalance.findOne({ user1: toUser, user2: fromUser }).session(session);
 
     if (record) {
         record.balance += amount;
     } else {
         // Check reverse
-        let reverse = await FriendBalance.findOne({ user1: fromUser, user2: toUser });
+        let reverse = await FriendBalance.findOne({ user1: fromUser, user2: toUser }).session(session);
         if (reverse) {
             reverse.balance -= amount;
-            if (reverse.balance === 0) await reverse.deleteOne();
-            else await reverse.save();
+            // NEVER delete - keep friendship even with zero balance
+            await reverse.save({ session });
+            // Invalidate cache after balance update
+            await cacheUtils.invalidateBalance(fromUser, toUser);
             return;
         }
 
         // Create new record (fromUser owes toUser)
         // user2 owes user1. so from=user2, to=user1
-        record = new FriendBalance({ user1: toUser, user2: fromUser, balance: amount });
+        record = new FriendBalance({ user1: toUser, user2: fromUser, balance: amount, status: 'active' });
     }
 
-    await record.save();
+    await record.save({ session });
+    // Invalidate cache after balance update
+    await cacheUtils.invalidateBalance(fromUser, toUser);
 };
 
 
@@ -42,6 +45,7 @@ const updateFriendBalance = async (fromUser, toUser, amount) => {
 Add Friend Transaction (No Changes)
 ------------------------------------------- */
 router.post("/add", async (req, res) => {
+    let session = null;
     try {
         const {
             paidBy,    // [{ user, amount }]
@@ -51,6 +55,48 @@ router.post("/add", async (req, res) => {
             date,
             category
         } = req.body;
+
+        // ===== VALIDATION =====
+        if (!paidBy || !Array.isArray(paidBy) || paidBy.length === 0) {
+            return res.status(400).json({ message: "paidBy must be a non-empty array" });
+        }
+        if (!payees || !Array.isArray(payees) || payees.length === 0) {
+            return res.status(400).json({ message: "payees must be a non-empty array" });
+        }
+        if (!totalAmount || totalAmount <= 0) {
+            return res.status(400).json({ message: "totalAmount must be positive" });
+        }
+        if (!description || description.trim().length === 0) {
+            return res.status(400).json({ message: "description is required" });
+        }
+
+        // Validate amounts are positive
+        for (const p of paidBy) {
+            if (!p.user || !p.amount || p.amount <= 0) {
+                return res.status(400).json({ message: "Invalid paidBy entry: user and positive amount required" });
+            }
+        }
+        for (const p of payees) {
+            if (!p.user || !p.amount || p.amount <= 0) {
+                return res.status(400).json({ message: "Invalid payees entry: user and positive amount required" });
+            }
+        }
+
+        // Validate total paid matches totalAmount
+        const totalPaid = paidBy.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        if (Math.abs(totalPaid - totalAmount) > 0.01) {
+            return res.status(400).json({
+                message: `Total paid (${totalPaid}) must equal totalAmount (${totalAmount})`
+            });
+        }
+
+        // Validate total owed matches totalAmount
+        const totalOwed = payees.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        if (Math.abs(totalOwed - totalAmount) > 0.01) {
+            return res.status(400).json({
+                message: `Total owed (${totalOwed}) must equal totalAmount (${totalAmount})`
+            });
+        }
 
         const transactionNumber = "TXN" + Date.now();
 
@@ -92,33 +138,89 @@ router.post("/add", async (req, res) => {
         creditors.sort((a, b) => b.balance - a.balance);
         debtors.sort((a, b) => a.balance - b.balance);
 
-        while (creditors.length > 0 && debtors.length > 0) {
-            const creditor = creditors[0];
-            const debtor = debtors[0];
-            const amount = Math.min(creditor.balance, Math.abs(debtor.balance));
+        // ===== START DB TRANSACTION FOR ATOMICITY =====
+        session = await FriendTransaction.db.startSession();
+        let usedTransaction = false;
 
-            await updateFriendBalance(debtor.uid, creditor.uid, amount);
+        try {
+            session.startTransaction();
+            usedTransaction = true;
 
-            settlements.push({
-                from: debtor.uid,
-                to: creditor.uid,
-                amount
-            });
+            while (creditors.length > 0 && debtors.length > 0) {
+                const creditor = creditors[0];
+                const debtor = debtors[0];
+                const amount = Math.min(creditor.balance, Math.abs(debtor.balance));
 
-            creditor.balance -= amount;
-            debtor.balance += amount;
+                await updateFriendBalance(debtor.uid, creditor.uid, amount, session);
 
-            if (creditor.balance === 0) creditors.shift();
-            if (debtor.balance === 0) debtors.shift();
+                settlements.push({
+                    from: debtor.uid,
+                    to: creditor.uid,
+                    amount
+                });
+
+                creditor.balance -= amount;
+                debtor.balance += amount;
+
+                if (creditor.balance === 0) creditors.shift();
+                if (debtor.balance === 0) debtors.shift();
+            }
+
+            newTxn.settlements = settlements;
+            await newTxn.save({ session });
+
+            await session.commitTransaction();
+            session.endSession();
+
+            res.status(201).json({ message: "Transaction added successfully", transaction: newTxn });
+        } catch (txnError) {
+            await session.abortTransaction();
+            session.endSession();
+            usedTransaction = false;
+
+            // Fallback for single-node MongoDB (no replica set)
+            if (txnError && (txnError.code === 20 || (txnError.message && txnError.message.includes('Transaction numbers are only allowed')))) {
+                console.warn('Transactions not supported - falling back to non-transactional mode');
+
+                // Re-run without transactions
+                while (creditors.length > 0 && debtors.length > 0) {
+                    const creditor = creditors[0];
+                    const debtor = debtors[0];
+                    const amount = Math.min(creditor.balance, Math.abs(debtor.balance));
+
+                    await updateFriendBalance(debtor.uid, creditor.uid, amount);
+
+                    settlements.push({
+                        from: debtor.uid,
+                        to: creditor.uid,
+                        amount
+                    });
+
+                    creditor.balance -= amount;
+                    debtor.balance += amount;
+
+                    if (creditor.balance === 0) creditors.shift();
+                    if (debtor.balance === 0) debtors.shift();
+                }
+
+                newTxn.settlements = settlements;
+                await newTxn.save();
+
+                res.status(201).json({ message: "Transaction added successfully (non-transactional)", transaction: newTxn });
+            } else {
+                throw txnError;
+            }
         }
-
-        newTxn.settlements = settlements;
-        await newTxn.save();
-
-        res.status(201).json({ message: "Transaction added successfully", transaction: newTxn });
     } catch (error) {
+        if (session && session.inTransaction()) {
+            await session.abortTransaction();
+            session.endSession();
+        }
         console.error("Error in adding transaction:", error);
-        res.status(500).json({ message: "Error adding transaction" });
+        res.status(500).json({
+            message: "Error adding transaction",
+            error: error.message
+        });
     }
 });
 
@@ -207,7 +309,23 @@ Get Balance Between 2 Users (No Changes)
 router.get("/balance/:userId/:friendId", async (req, res) => {
     const { userId, friendId } = req.params;
 
+    // Allow internal service calls with secret header (bypass JWT for microservices)
+    const internalSecretHeader = req.headers['x-internal-secret'];
+    const hasValidInternalSecret = internalSecretHeader && process.env.INTERNAL_SECRET && internalSecretHeader === process.env.INTERNAL_SECRET;
+
+    // If no internal secret and no user from protect middleware, reject
+    if (!hasValidInternalSecret && !req.user) {
+        return res.status(401).json({ message: 'Not authorized' });
+    }
+
     try {
+        // Try Redis cache first
+        const cached = await cacheUtils.getBalance(userId, friendId);
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
+        // Cache miss - query database
         const record = await FriendBalance.findOne({
             $or: [
                 { user1: userId, user2: friendId },
@@ -216,7 +334,10 @@ router.get("/balance/:userId/:friendId", async (req, res) => {
         });
 
         if (!record) {
-            return res.status(200).json({ balanceMessage: `Everything is settled with this friend.` });
+            const result = { balanceMessage: `Everything is settled with this friend.`, balanceValue: 0, payerIsUser: false };
+            // Cache zero balance result
+            await cacheUtils.setBalance(userId, friendId, result, 300);
+            return res.status(200).json(result);
         }
 
         const { user1, user2, balance } = record;
@@ -238,7 +359,13 @@ router.get("/balance/:userId/:friendId", async (req, res) => {
             message = `Everything is settled with ${friend.name}`;
         }
 
-        res.status(200).json({ balanceMessage: message });
+        const payerIsUser = user2.toString() === userId;
+        const result = { balanceMessage: message, balanceValue: balance, payerIsUser };
+
+        // Cache the result for 5 minutes
+        await cacheUtils.setBalance(userId, friendId, result, 300);
+
+        res.status(200).json(result);
     } catch (error) {
         console.error("Balance error:", error);
         res.status(500).json({ message: "Balance check failed" });
@@ -249,10 +376,15 @@ router.get("/balance/:userId/:friendId", async (req, res) => {
  Settle Up (Refactored)
 ------------------------------------------- */
 router.post("/settle-up", async (req, res) => {
-    const { userId, friendId, settleAmount } = req.body;
+    const { userId, friendId, settleAmount, idempotencyKey } = req.body;
     const amount = Number(settleAmount);
 
     try {
+        // If this call is coming from an internal service, validate internal secret header when provided
+        const internalSecretHeader = req.headers['x-internal-secret'];
+        if (internalSecretHeader && process.env.INTERNAL_SECRET && internalSecretHeader !== process.env.INTERNAL_SECRET) {
+            return res.status(403).json({ message: 'Invalid internal secret' });
+        }
         const record = await FriendBalance.findOne({
             $or: [
                 { user1: userId, user2: friendId },
@@ -276,22 +408,89 @@ router.post("/settle-up", async (req, res) => {
             return res.status(400).json({ message: "You can't settle more than you owe." });
         }
 
-        // 1. Update the overall balance
-        record.balance -= amount;
-        await record.save();
+        // 1. Update the overall balance and create FriendTransaction.
+        // Prefer transactions when available, but gracefully fall back for single-node MongoDB.
+        let usedTransaction = false;
+        try {
+            const session = await FriendTransaction.db.startSession();
+            try {
+                session.startTransaction();
+                usedTransaction = true;
 
-        // 2. Create a FriendTransaction to log this settlement event
-        await FriendTransaction.create({
-            description: "Settlement",
-            category: "Settlement",
-            totalAmount: amount,
-            transactionNumber: "SETTLE-" + Date.now(),
-            paidBy: [{ user: userId, amount: amount }],
-            payees: [{ user: friendId, amount: amount }],
-            settlements: [{ from: userId, to: friendId, amount: amount }]
-        });
+                record.balance -= amount;
+                // NEVER delete friendship - keep record even with zero balance
+                await record.save({ session });
 
-        return res.status(200).json({ message: "Settlement successful." });
+                const newTxn = new FriendTransaction({
+                    description: "Settlement",
+                    category: "Settlement",
+                    totalAmount: amount,
+                    transactionNumber: "SETTLE-" + Date.now(),
+                    paidBy: [{ user: userId, amount: amount }],
+                    payees: [{ user: friendId, amount: amount }],
+                    settlements: [{ from: userId, to: friendId, amount: amount }]
+                });
+                await newTxn.save({ session });
+
+                await session.commitTransaction();
+                session.endSession();
+                return res.status(200).json({ message: "Settlement successful." });
+            } catch (err) {
+                // If starting/using transactions failed because the server isn't a replica set, fall back.
+                await session.abortTransaction().catch(() => { });
+                session.endSession();
+                usedTransaction = false;
+                // If it's the specific IllegalOperation about transaction numbers, fallback to non-transactional apply.
+                if (err && (err.code === 20 || (err.message && err.message.includes('Transaction numbers are only allowed')))) {
+                    console.warn('Transactions not supported by Mongo deployment — falling back to non-transactional apply.');
+                    // Continue to non-transactional path below
+                } else {
+                    console.error('Settlement apply error (transaction):', err);
+                    return res.status(500).json({ message: 'Settlement failed.' });
+                }
+            }
+        } catch (startErr) {
+            // startSession could fail on some drivers/deployments; fall back
+            console.warn('Could not start session; falling back to non-transactional apply.', startErr?.message || startErr);
+        }
+
+        // Non-transactional fallback: best-effort sequential updates.
+        // Only proceed if transaction was NOT attempted or failed.
+        if (!usedTransaction) {
+            try {
+                // Re-fetch the record to get fresh state (in case transaction attempt modified it in-memory).
+                const freshRecord = await FriendBalance.findOne({
+                    $or: [
+                        { user1: userId, user2: friendId },
+                        { user1: friendId, user2: userId }
+                    ]
+                });
+
+                if (!freshRecord) {
+                    return res.status(400).json({ message: "No balance to settle." });
+                }
+
+                freshRecord.balance -= amount;
+                // NEVER delete friendship - keep record even with zero balance
+                await freshRecord.save();
+
+                const newTxn = new FriendTransaction({
+                    description: "Settlement",
+                    category: "Settlement",
+                    totalAmount: amount,
+                    transactionNumber: "SETTLE-" + Date.now(),
+                    paidBy: [{ user: userId, amount: amount }],
+                    payees: [{ user: friendId, amount: amount }],
+                    settlements: [{ from: userId, to: friendId, amount: amount }]
+                });
+                await newTxn.save();
+
+                return res.status(200).json({ message: "Settlement successful (non-transactional)." });
+            } catch (err) {
+                console.error('Settlement apply error (fallback):', err);
+                return res.status(500).json({ message: 'Settlement failed.' });
+            }
+        }
 
     } catch (err) {
         console.error("Settlement error:", err);

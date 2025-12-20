@@ -23,6 +23,11 @@ router.post('/register', async function (req, res) {
             return res.status(400).json({ message: 'Name, email and password are required' });
         }
 
+        // Validate password length before trying to save
+        if (password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        }
+
         // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -47,6 +52,13 @@ router.post('/register', async function (req, res) {
 
     } catch (error) {
         console.error('Register error:', error);
+
+        // Handle validation errors with user-friendly messages
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({ message: messages.join(', ') });
+        }
+
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
