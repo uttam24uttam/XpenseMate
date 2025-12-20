@@ -1,5 +1,5 @@
 // models/FriendBalance.js
-// Unified model: tracks both friendship relationship AND financial balance
+// tracks both friendship relationship AND financial balance
 // user2 owes user1 balance
 import mongoose from 'mongoose';
 
@@ -52,16 +52,3 @@ FriendBalanceSchema.index({ user2: 1, status: 1 }); // find user's active friend
 
 const FriendBalance = mongoose.model('FriendBalance', FriendBalanceSchema);
 export default FriendBalance;
-
-
-// ref
-// Reference to another collection → enables .populate(), like a foreign key
-// Done by mongoose, not by MongoDB at database level
-
-// Per-transaction updates:
-// Always run for every new transaction.
-// Keeps balances accurate in real-time.
-
-// Global optimization:
-// Run occasionally to minimize overall transfers.
-// Updates balances in FriendBalance without deleting friend relationships.

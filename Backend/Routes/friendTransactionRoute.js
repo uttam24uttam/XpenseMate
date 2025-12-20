@@ -8,9 +8,9 @@ import { cacheUtils } from '../config/redis.js';
 
 const router = express.Router();
 
-/* ------------------------------------------
- Update or Create Friend Balance Record (No Changes)
-------------------------------------------- */
+
+// Update Create Friend Balance Record 
+
 const updateFriendBalance = async (fromUser, toUser, amount, session = null) => {
     //from owes to
     //in friendBalance, user1 is owed by user2
@@ -23,9 +23,9 @@ const updateFriendBalance = async (fromUser, toUser, amount, session = null) => 
         let reverse = await FriendBalance.findOne({ user1: fromUser, user2: toUser }).session(session);
         if (reverse) {
             reverse.balance -= amount;
-            // NEVER delete - keep friendship even with zero balance
+
             await reverse.save({ session });
-            // Invalidate cache after balance update
+
             await cacheUtils.invalidateBalance(fromUser, toUser);
             return;
         }
@@ -41,9 +41,9 @@ const updateFriendBalance = async (fromUser, toUser, amount, session = null) => 
 };
 
 
-/* ------------------------------------------
-Add Friend Transaction (No Changes)
-------------------------------------------- */
+
+//Add Friend Transaction
+
 router.post("/add", async (req, res) => {
     let session = null;
     try {
@@ -56,7 +56,7 @@ router.post("/add", async (req, res) => {
             category
         } = req.body;
 
-        // ===== VALIDATION =====
+
         if (!paidBy || !Array.isArray(paidBy) || paidBy.length === 0) {
             return res.status(400).json({ message: "paidBy must be a non-empty array" });
         }
@@ -110,7 +110,7 @@ router.post("/add", async (req, res) => {
             transactionNumber
         });
 
-        //  Step 1: Map paid and owed for each user
+        //   Map paid and owed for each user
         const paidMap = {}, owedMap = {};
         for (const { user, amount } of paidBy) {
             paidMap[user.toString()] = (paidMap[user.toString()] || 0) + amount;
@@ -119,7 +119,7 @@ router.post("/add", async (req, res) => {
             owedMap[user.toString()] = (owedMap[user.toString()] || 0) + amount;
         }
 
-        //  Step 2: Build final balances per user
+        // Build final balances per user
         const netBalances = {};
         const allUsers = new Set([...Object.keys(paidMap), ...Object.keys(owedMap)]);
         for (const uid of allUsers) {
@@ -128,7 +128,7 @@ router.post("/add", async (req, res) => {
             netBalances[uid] = paid - owed;
         }
 
-        //  Step 3: Settle creditors and debtors
+        // Settle creditors and debtors
         const creditors = [], debtors = [], settlements = [];
         for (const [uid, bal] of Object.entries(netBalances)) {
             if (bal > 0) creditors.push({ uid, balance: bal });
@@ -138,7 +138,7 @@ router.post("/add", async (req, res) => {
         creditors.sort((a, b) => b.balance - a.balance);
         debtors.sort((a, b) => a.balance - b.balance);
 
-        // ===== START DB TRANSACTION FOR ATOMICITY =====
+        //transaction
         session = await FriendTransaction.db.startSession();
         let usedTransaction = false;
 
@@ -178,11 +178,9 @@ router.post("/add", async (req, res) => {
             session.endSession();
             usedTransaction = false;
 
-            // Fallback for single-node MongoDB (no replica set)
             if (txnError && (txnError.code === 20 || (txnError.message && txnError.message.includes('Transaction numbers are only allowed')))) {
                 console.warn('Transactions not supported - falling back to non-transactional mode');
 
-                // Re-run without transactions
                 while (creditors.length > 0 && debtors.length > 0) {
                     const creditor = creditors[0];
                     const debtor = debtors[0];
@@ -224,9 +222,9 @@ router.post("/add", async (req, res) => {
     }
 });
 
-/* ------------------------------------------
-  View All Transactions Between Two Users (Refactored)
- ------------------------------------------- */
+
+//View All Transactions Between Two Users 
+
 router.get("/transactions/:userId/:friendId", async (req, res) => {
     const { userId, friendId } = req.params;
 

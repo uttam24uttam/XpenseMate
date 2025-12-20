@@ -26,9 +26,6 @@ export default function AddFriendExpense({ friends = [], visible, open, onCancel
     const userId = rawUser?.user?._id || rawUser?.user?.id || rawUser?._id || rawUser?.id || null;
     const userObj = rawUser?.user || rawUser || null;
 
-    // Do not render the modal if no user present
-    if (!rawUser || !userId) return null;
-
     const [newExpense, setNewExpense] = useState({
         description: "",
         totalAmount: "",
@@ -41,6 +38,9 @@ export default function AddFriendExpense({ friends = [], visible, open, onCancel
         category: "",
         addToPersonalFinance: false
     });
+
+    // Do not render the modal if no user present
+    if (!rawUser || !userId) return null;
 
     const categories = [
         { label: "Groceries", value: "groceries", icon: <ShoppingCartOutlined /> },

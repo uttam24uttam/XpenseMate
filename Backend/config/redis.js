@@ -20,18 +20,18 @@ const redis = new Redis(redisConfig);
 
 // Connection event handlers
 redis.on('connect', () => {
-    console.log('✅ Redis connected successfully');
+    console.log('Redis connected successfully');
 });
 
 redis.on('error', (err) => {
-    console.error('❌ Redis connection error:', err.message);
+    console.error('Redis connection error:', err.message);
 });
 
 redis.on('ready', () => {
-    console.log('🚀 Redis is ready to accept commands');
+    console.log(' Redis is ready to accept commands');
 });
 
-// Helper functions for friend balance caching
+// friend balance caching
 export const cacheKeys = {
     friendBalance: (userId, friendId) => {
         // Normalize to ensure A-B and B-A use same cache key
@@ -47,23 +47,23 @@ export const cacheUtils = {
             const key = cacheKeys.friendBalance(userId, friendId);
             const cached = await redis.get(key);
             if (cached) {
-                console.log(`🎯 Cache HIT: ${key}`);
+                console.log(` Cache HIT: ${key}`);
                 return JSON.parse(cached);
             }
-            console.log(`❌ Cache MISS: ${key}`);
+            console.log(` Cache MISS: ${key}`);
             return null;
         } catch (error) {
             console.error('Redis get error:', error);
-            return null; // Fail silently, fall back to DB
+            return null;
         }
     },
 
-    // Set balance cache with TTL (default 5 minutes)
+    // Set balance cache with TTL (5 minutes)
     async setBalance(userId, friendId, data, ttl = 300) {
         try {
             const key = cacheKeys.friendBalance(userId, friendId);
             await redis.setex(key, ttl, JSON.stringify(data));
-            console.log(`✅ Cache SET: ${key} (TTL: ${ttl}s)`);
+            console.log(`Cache SET: ${key} (TTL: ${ttl}s)`);
         } catch (error) {
             console.error('Redis set error:', error);
             // Fail silently - caching is not critical
@@ -75,19 +75,18 @@ export const cacheUtils = {
         try {
             const key = cacheKeys.friendBalance(userId, friendId);
             await redis.del(key);
-            console.log(`🗑️  Cache INVALIDATED: ${key}`);
+            console.log(`  Cache INVALIDATED: ${key}`);
         } catch (error) {
             console.error('Redis delete error:', error);
         }
     },
 
-    // Clear all balance caches (for debugging/maintenance)
     async clearAllBalances() {
         try {
             const keys = await redis.keys('balance:*');
             if (keys.length > 0) {
                 await redis.del(...keys);
-                console.log(`🗑️  Cleared ${keys.length} balance cache entries`);
+                console.log(` Cleared ${keys.length} balance cache entries`);
             }
         } catch (error) {
             console.error('Redis clear error:', error);

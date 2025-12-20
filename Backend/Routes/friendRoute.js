@@ -152,56 +152,6 @@ router.get('/get-friend-details/:friendId', async (req, res) => {
 
 
 
-
-// //get the overall balance for the logged-in user
-// router.get("/get-overall-balance/:userId", async (req, res) => {
-//     const userId = req.params.userId;
-//     console.log(`overall balance - ${userId}`)
-//     try {
-//         let total_I_owe = 0;
-//         let total_they_owe = 0;
-
-//         const userBalance = await FriendBalance.findOne({ userId });
-
-//         // userBalance is found -> calculate total_I_owe by adding up all balanceAmount for the user
-//         if (userBalance) {
-//             total_I_owe = userBalance.balances.reduce((acc, balance) => acc + balance.balanceAmount, 0);
-//         } else {
-//             total_I_owe = 0;
-//         }
-//         console.log(`overall total_I_owe - ${total_I_owe}`)
-
-//         // iterating  through all FriendBalance models to calculate total_they_owe
-//         const allFriendBalances = await FriendBalance.find();
-
-//         allFriendBalances.forEach((friendBalance) => {
-//             const balance = friendBalance.balances.find(
-//                 (b) => b.friendId.toString() === userId.toString()
-//             );
-//             if (balance) {
-//                 total_they_owe += balance.balanceAmount;
-//             }
-//         });
-
-//         const difference = total_I_owe - total_they_owe;  //overall  balance
-
-//         let message = "";
-//         if (difference > 0) {
-//             message = `Overall, You owe ₹${Math.abs(difference).toFixed(0)}`;
-//         } else if (difference < 0) {
-//             message = `Overall, You are owed ₹${Math.abs(difference).toFixed(0)}`;
-//         } else {
-//             message = "Everything is settled!";
-//         }
-
-//         res.status(200).json({ message });
-//     } catch (error) {
-//         console.error("Error calculating overall balance:", error);
-//         res.status(500).json({ message: "Failed to calculate overall balance." });
-//     }
-// });
-
-
 router.get("/get-overall-balance/:userId", async (req, res) => {
     const userId = req.params.userId;
 

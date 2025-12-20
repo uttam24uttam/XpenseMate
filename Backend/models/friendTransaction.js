@@ -1,7 +1,3 @@
-// In my schema design, I keep transaction history in one place only — the FriendTransaction collection.
-// The FriendBalance collection is used purely as a net ledger, i.e., the running balance between two users.
-// This avoids duplicating the same transaction data in multiple places, which can lead to data inconsistency if updates fail.
-
 import mongoose from 'mongoose';
 //For both transactions and settlements 
 
@@ -49,7 +45,7 @@ const friendTransactionSchema = new mongoose.Schema({
 
     settlements: [
         {
-            //from->to means """"from owes to""""" amount
+            //from->to means "from owes to" amount
             from: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
             to: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
             amount: { type: Number, required: true, min: 0 }
@@ -77,11 +73,9 @@ const friendTransactionSchema = new mongoose.Schema({
 });
 
 // Indexes for performance optimization
-friendTransactionSchema.index({ transactionNumber: 1 }, { unique: true }); // fast lookup by transaction number
+friendTransactionSchema.index({ transactionNumber: 1 }, { unique: true });
 friendTransactionSchema.index({ 'paidBy.user': 1, date: -1 }); // queries by payer with recent-first sorting
 friendTransactionSchema.index({ 'payees.user': 1, date: -1 }); // queries by payee with recent-first sorting
-// Note: Cannot create compound index on two array fields (paidBy.user + payees.user)
-// MongoDB limitation: "cannot index parallel arrays"
 friendTransactionSchema.index({ date: -1 }); // general date-based sorting
 friendTransactionSchema.index({ status: 1 }); // filter by status
 
