@@ -2,143 +2,78 @@ pipeline {
     agent any
 
     environment {
-        // Docker Hub Credentials
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-cred')
-        DOCKER_HUB_USERNAME = 'uttamhamsaraj24' 
-        
-        // Docker Images Configuration
-        BACKEND_IMAGE = "${DOCKER_HUB_USERNAME}/splitwise-backend:latest"
-        FRONTEND_IMAGE = "${DOCKER_HUB_USERNAME}/splitwise-frontend:latest"
-        REGISTRY = 'docker.io'
+        BACKEND_IMAGE_NAME = 'uttamhamsaraj24/splitwise-backend'
+        FRONTEND_IMAGE_NAME = 'uttamhamsaraj24/splitwise-frontend'
     }
     
     stages {
-        stage('Step 1: Git Clone') {
+        stage('Stage 1: Git Clone') {
             steps {
-                script {
-                    echo " Step 1: Git Clone"
-                    checkout scm
-                    sh 'git log -1 --oneline'
-                    echo " Repository cloned successfully"
-                }
+                git branch: 'main',
+                credentialsId: 'github-token',
+                url: 'https://github.com/uttam24uttam/XpenseMate'
             }
         }
 
-        stage('Step 2: Install Requirements') {
+        stage('Stage 2: Setup Backend') {
             steps {
-                script {
-                    echo " Step 2: Install Requirements"
-                    
-                    parallel(
-                        "Backend Dependencies": {
-                            sh '''
-                                echo "Installing backend dependencies..."
-                                cd Backend && npm install
-                                echo " Backend dependencies installed"
-                            '''
-                        },
-                        "Frontend Dependencies": {
-                            sh '''
-                                echo "Installing frontend dependencies..."
-                                cd Frontend && npm install
-                                echo " Frontend dependencies installed"
-                            '''
-                        },
-                        "Ansible Collections": {
-                            sh '''
-                                echo "Installing Ansible collections..."
-                                cd ansible && ansible-galaxy collection install -r requirements.yml
-                                echo " Ansible collections installed"
-                            '''
-                        }
-                    )
-                }
+                sh '''
+                    npm install
+                '''
+            }
+        }
+        
+        stage('Stage 3: Setup Frontend') {
+            steps {
+                sh '''
+                    cd Frontend
+                    npm install
+                '''
             }
         }
 
-        // stage('Step 3: Test Backend') {
+        // stage('Stage 4: Test Backend') {
         //     steps {
-        //         script {
-        //             echo "Step 3: Test Backend"
-        //             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-        //                 sh 'cd Backend && npm test'
-        //             }
-        //             echo " Backend tests completed"
-        //         }
+        //         sh '''
+        //             npm test
+        //         '''
         //     }
         // }
 
-        stage('Step 4: Build and Push Backend Docker Image') {
+        stage('Stage 5: Build and Push Backend Docker Image') {
             steps {
                 script {
-                    echo " Step 4: Build and Push Backend Docker Image"
-                    
-                    // Login to Docker Hub
-                    sh '''
-                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin
-                        echo " Logged in to Docker Hub"
-                    '''
-                    
-                    // Build Backend Image
-                    sh '''
-                        docker build -f Backend/Dockerfile -t ${BACKEND_IMAGE} .
-                        echo " Backend Docker image built successfully"
-                    '''
-                    
-                    // Push Backend Image
-                    sh '''
-                        docker push ${BACKEND_IMAGE}
-                        echo " Backend Docker image pushed to Docker Hub"
-                    '''
+                    def backendImage = docker.build(env.BACKEND_IMAGE_NAME, '-f Backend/Dockerfile .')
+                    docker.withRegistry('', 'docker-hub-cred') {
+                        backendImage.push('latest')
+                    }
                 }
             }
         }
 
-        stage('Step 5: Build and Push Frontend Docker Image') {
+        stage('Stage 6: Build and Push Frontend Docker Image') {
             steps {
                 script {
-                    echo "Step 5: Build and Push Frontend Docker Image"
-                    
-                    // Build Frontend Image
-                    sh '''
-                        cd Frontend
-                        docker build -t ${FRONTEND_IMAGE} .
-                        echo " Frontend Docker image built successfully"
-                    '''
-                    
-                    // Push Frontend Image
-                    sh '''
-                        docker push ${FRONTEND_IMAGE}
-                        echo " Frontend Docker image pushed to Docker Hub"
-                    '''
+                    def frontendImage = docker.build(env.FRONTEND_IMAGE_NAME, './Frontend')
+                    docker.withRegistry('', 'docker-hub-cred') {
+                        frontendImage.push('latest')
+                    }
                 }
             }
         }
 
-        stage('Step 6: Clean Docker Images') {
+        stage('Stage 7: Clean Docker Images') {
             steps {
                 script {
-                    echo " Step 6: Clean Docker Images"
-                    sh '''
-                        echo "Removing unused Docker containers..."
-                        docker container prune -f || true
-                        echo " Docker containers pruned"
-                        
-                        echo "Removing unused Docker images..."
-                        docker image prune -f || true
-                        echo " Docker images pruned"
-                    '''
+                    sh 'docker container prune -f'
+                    sh 'docker image prune -f'
                 }
             }
         }
 
-        stage('Step 7: Ansible Deployment') {
+        stage('Stage 8: Ansible Deployment') {
             steps {
                 script {
-                    echo " Step 7: Ansible Deployment"
-                    echo "Triggering Ansible Playbook for Kubernetes Deployment"
-                    
-                    // Execute Ansible Playbook using Ansible Plugin
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
                         playbook: 'ansible/deploy.yml',
@@ -146,83 +81,37 @@ pipeline {
                         disableHostKeyChecking: true,
                         extras: '-e ansible_python_interpreter=/usr/bin/python3',
                         extraVars: [
-                            docker_registry: "${DOCKER_HUB_USERNAME}",
+                            docker_registry: 'uttamhamsaraj24',
                             image_tag: 'latest',
                             k8s_namespace: 'splitwise',
-                            backend_image: "${BACKEND_IMAGE}",
-                            frontend_image: "${FRONTEND_IMAGE}"
+                            backend_image: "${env.BACKEND_IMAGE_NAME}:latest",
+                            frontend_image: "${env.FRONTEND_IMAGE_NAME}:latest"
                         ]
                     )
-                    
-                    echo " Ansible playbook executed successfully"
                 }
             }
         }
 
-        stage('Step 8: Verify Kubernetes Deployment') {
+        stage('Stage 9: Verify Kubernetes Deployment') {
             steps {
                 script {
-                    echo " Step 8: Verify Kubernetes Deployment"
                     sh '''
-                        echo "Waiting for deployments to be ready..."
                         kubectl wait --for=condition=available --timeout=300s \
                             deployment/backend deployment/frontend -n splitwise || true
-                        
-                        echo "\n Pods Status:"
                         kubectl get pods -n splitwise
-                        
-                        echo "\n Services:"
                         kubectl get svc -n splitwise
-                        
-                        echo "\n Horizontal Pod Autoscalers:"
                         kubectl get hpa -n splitwise
-                        
-                        echo "\n Deployments:"
                         kubectl get deployments -n splitwise
                     '''
-                    echo " Kubernetes deployment verified"
                 }
             }
         }
     }
     
     post {
-        always {
-            script {
-                echo " Pipeline Execution Completed"
-                
-                // Cleanup Docker login
-                sh '''
-                    docker logout || true
-                    echo " Logged out from Docker Hub"
-                '''
-            }
-        }
-        
-        success {
-            script {
-                echo " =========================================="
-                echo " PIPELINE SUCCEEDED!"
-                echo " =========================================="
-                echo " Backend Image: ${BACKEND_IMAGE}"
-                echo " Frontend Image: ${FRONTEND_IMAGE}"
-                echo " Namespace: splitwise"
-                echo " Splitwise Application deployed successfully!"
-                echo " =========================================="
-            }
-        }
-        
         failure {
             script {
-                echo " =========================================="
-                echo " PIPELINE FAILED!"
-                echo " =========================================="
-                echo " Please check the logs above for more details"
-                echo " =========================================="
-                
-                // Attempt rollback using Ansible plugin
                 try {
-                    echo " Attempting rollback..."
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
                         playbook: 'ansible/rollback.yml',
@@ -233,7 +122,6 @@ pipeline {
                             k8s_namespace: 'splitwise'
                         ]
                     )
-                    echo " Rollback completed"
                 } catch (Exception e) {
                     echo "Rollback failed: ${e.message}"
                 }
