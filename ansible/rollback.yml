@@ -1,8 +1,9 @@
 ---
 # Playbook to rollback deployment
 - name: Rollback Splitwise Application
-  hosts: k8s_master
-  become: yes
+  hosts: localhost
+  connection: local
+  gather_facts: no
   
   vars:
     namespace: "splitwise"

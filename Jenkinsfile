@@ -143,7 +143,6 @@ pipeline {
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
                         playbook: 'ansible/deploy.yml',
-                        verbosity: 1,
                         colorized: true,
                         disableHostKeyChecking: true,
                         extras: '-e ansible_python_interpreter=/usr/bin/python3',
@@ -224,11 +223,10 @@ pipeline {
                 
                 // Attempt rollback using Ansible plugin
                 try {
-                    echo " Attempting rollback..."
+                    echo "🔄 Attempting rollback..."
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
                         playbook: 'ansible/rollback.yml',
-                        verbosity: 1,
                         colorized: true,
                         disableHostKeyChecking: true,
                         extras: '-e ansible_python_interpreter=/usr/bin/python3',
@@ -236,9 +234,9 @@ pipeline {
                             namespace: 'splitwise'
                         ]
                     )
-                    echo " Rollback completed"
+                    echo "✅ Rollback completed"
                 } catch (Exception e) {
-                    echo " Rollback failed: ${e.message}"
+                    echo "⚠️ Rollback failed: ${e.message}"
                 }
             }
         }
