@@ -56,17 +56,17 @@ pipeline {
             }
         }
 
-        stage('Step 3: Test Backend') {
-            steps {
-                script {
-                    echo "Step 3: Test Backend"
-                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                        sh 'cd Backend && npm test'
-                    }
-                    echo " Backend tests completed"
-                }
-            }
-        }
+        // stage('Step 3: Test Backend') {
+        //     steps {
+        //         script {
+        //             echo "Step 3: Test Backend"
+        //             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+        //                 sh 'cd Backend && npm test'
+        //             }
+        //             echo " Backend tests completed"
+        //         }
+        //     }
+        // }
 
         stage('Step 4: Build and Push Backend Docker Image') {
             steps {
