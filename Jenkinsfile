@@ -4,7 +4,7 @@ pipeline {
     environment {
         // Docker Hub Credentials
         DOCKER_HUB_CREDENTIALS = credentials('docker-hub-cred')
-        DOCKER_HUB_USERNAME = 'uttam24uttam'
+        DOCKER_HUB_USERNAME = 'uttamhamsaraj24' 
         
         // Docker Images Configuration
         BACKEND_IMAGE = "${DOCKER_HUB_USERNAME}/splitwise-backend:latest"
@@ -82,7 +82,7 @@ pipeline {
                     // Build Backend Image
                     sh '''
                         docker build -f Backend/Dockerfile -t ${BACKEND_IMAGE} .
-                        echo "✅ Backend Docker image built successfully"
+                        echo " Backend Docker image built successfully"
                     '''
                     
                     // Push Backend Image
