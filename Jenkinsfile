@@ -71,7 +71,7 @@ pipeline {
         stage('Step 4: Build and Push Backend Docker Image') {
             steps {
                 script {
-                    echo "🔨 Step 4: Build and Push Backend Docker Image"
+                    echo " Step 4: Build and Push Backend Docker Image"
                     
                     // Login to Docker Hub
                     sh '''
@@ -81,9 +81,8 @@ pipeline {
                     
                     // Build Backend Image
                     sh '''
-                        cd Backend
-                        docker build -t ${BACKEND_IMAGE} .
-                        echo " Backend Docker image built successfully"
+                        docker build -f Backend/Dockerfile -t ${BACKEND_IMAGE} .
+                        echo "✅ Backend Docker image built successfully"
                     '''
                     
                     // Push Backend Image
@@ -149,7 +148,7 @@ pipeline {
                         extraVars: [
                             docker_registry: "${DOCKER_HUB_USERNAME}",
                             image_tag: 'latest',
-                            namespace: 'splitwise',
+                            k8s_namespace: 'splitwise',
                             backend_image: "${BACKEND_IMAGE}",
                             frontend_image: "${FRONTEND_IMAGE}"
                         ]
@@ -223,7 +222,7 @@ pipeline {
                 
                 // Attempt rollback using Ansible plugin
                 try {
-                    echo "🔄 Attempting rollback..."
+                    echo " Attempting rollback..."
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
                         playbook: 'ansible/rollback.yml',
@@ -231,12 +230,12 @@ pipeline {
                         disableHostKeyChecking: true,
                         extras: '-e ansible_python_interpreter=/usr/bin/python3',
                         extraVars: [
-                            namespace: 'splitwise'
+                            k8s_namespace: 'splitwise'
                         ]
                     )
-                    echo "✅ Rollback completed"
+                    echo " Rollback completed"
                 } catch (Exception e) {
-                    echo "⚠️ Rollback failed: ${e.message}"
+                    echo "Rollback failed: ${e.message}"
                 }
             }
         }

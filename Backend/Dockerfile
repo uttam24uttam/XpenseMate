@@ -3,7 +3,7 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files from root
 COPY package*.json ./
 
 # Install dependencies
@@ -21,8 +21,11 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy dependencies from builder
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copy application code
-COPY . .
+# Copy Backend application code
+COPY Backend/ ./Backend/
+
+# Copy root files needed
+COPY package*.json ./
 
 # Change ownership
 RUN chown -R nodejs:nodejs /app
@@ -38,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5000/api/users/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
-CMD ["node", "Server/server.js"]
+CMD ["node", "Backend/Server/server.js"]

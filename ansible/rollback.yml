@@ -6,19 +6,19 @@
   gather_facts: no
   
   vars:
-    namespace: "splitwise"
+    k8s_namespace: "splitwise"
     
   tasks:
     - name: Rollback backend deployment
-      command: kubectl rollout undo deployment/backend -n {{ namespace }}
+      command: kubectl rollout undo deployment/backend -n {{ k8s_namespace }}
       register: backend_rollback
 
     - name: Rollback frontend deployment
-      command: kubectl rollout undo deployment/frontend -n {{ namespace }}
+      command: kubectl rollout undo deployment/frontend -n {{ k8s_namespace }}
       register: frontend_rollback
 
     - name: Wait for rollback to complete
-      command: kubectl rollout status deployment/{{ item }} -n {{ namespace }}
+      command: kubectl rollout status deployment/{{ item }} -n {{ k8s_namespace }}
       loop:
         - backend
         - frontend
