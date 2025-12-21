@@ -1,0 +1,47 @@
+---
+- name: Apply namespace
+  command: kubectl apply -f {{ k8s_dir }}/namespace.yaml
+
+- name: Apply configmap
+  command: kubectl apply -f {{ k8s_dir }}/configmap.yaml
+
+- name: Apply secrets
+  command: kubectl apply -f {{ k8s_dir }}/secrets.yaml
+  ignore_errors: yes
+
+- name: Apply MongoDB StatefulSet
+  command: kubectl apply -f {{ k8s_dir }}/mongodb-statefulset.yaml
+
+- name: Wait for MongoDB
+  command: kubectl rollout status statefulset/mongodb -n {{ k8s_namespace }} --timeout=300s
+  ignore_errors: yes
+
+- name: Apply Redis
+  command: kubectl apply -f {{ k8s_dir }}/redis-deployment.yaml
+
+- name: Apply Backend Deployment
+  command: kubectl apply -f {{ k8s_dir }}/backend-deployment.yaml
+
+- name: Apply Backend Service
+  command: kubectl apply -f {{ k8s_dir }}/backend-service.yaml
+
+- name: Apply Backend HPA
+  command: kubectl apply -f {{ k8s_dir }}/backend-hpa.yaml
+
+- name: Apply Frontend Deployment
+  command: kubectl apply -f {{ k8s_dir }}/frontend-deployment.yaml
+
+- name: Apply Frontend Service
+  command: kubectl apply -f {{ k8s_dir }}/frontend-service.yaml
+
+- name: Apply Frontend HPA
+  command: kubectl apply -f {{ k8s_dir }}/frontend-hpa.yaml
+
+- name: Apply Ingress
+  command: kubectl apply -f {{ k8s_dir }}/ingress.yaml
+
+- name: Wait for Backend
+  command: kubectl rollout status deployment/backend -n {{ k8s_namespace }} --timeout=300s
+
+- name: Wait for Frontend
+  command: kubectl rollout status deployment/frontend -n {{ k8s_namespace }} --timeout=300s

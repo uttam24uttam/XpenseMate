@@ -16,10 +16,10 @@ const port = process.env.PORT || 5000;
 //JWT secret 
 if (!process.env.JWT_SECRET) {
     if (process.env.NODE_ENV === 'production') {
-        console.error('FATAL: JWT_SECRET is not set. Set JWT_SECRET in your environment.');
+        console.error('FATAL: JWT_SECRET is not set.');
         process.exit(1);
     } else {
-        console.warn('Warning: JWT_SECRET is not set. Using JWT will fail until configured.');
+        console.warn('Warning: JWT_SECRET is not set. .');
     }
 }
 

@@ -325,6 +325,8 @@ export default function AddFriendExpense({ friends = [], visible, open, onCancel
         </Modal>
     );
 }
+
+
 // handleAddExpense → validates inputs, constructs payload, calls backend APIs, and handles personal finance tracking
 // A payload is the data in object you send to the backend when making an API request.
 // const payload = {

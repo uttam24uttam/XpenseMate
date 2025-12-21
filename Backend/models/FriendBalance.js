@@ -45,10 +45,10 @@ FriendBalanceSchema.pre('save', function (next) {
     next();
 });
 
-FriendBalanceSchema.index({ user1: 1, user2: 1 }, { unique: true }); // prevent duplicates
-FriendBalanceSchema.index({ user2: 1, user1: 1 }); // optimize reverse lookups
-FriendBalanceSchema.index({ user1: 1, status: 1 }); // find user's active friends
-FriendBalanceSchema.index({ user2: 1, status: 1 }); // find user's active friends (reverse)
+FriendBalanceSchema.index({ user1: 1, user2: 1 }, { unique: true });
+FriendBalanceSchema.index({ user2: 1, user1: 1 });
+FriendBalanceSchema.index({ user1: 1, status: 1 });
+FriendBalanceSchema.index({ user2: 1, status: 1 });
 
 const FriendBalance = mongoose.model('FriendBalance', FriendBalanceSchema);
 export default FriendBalance;

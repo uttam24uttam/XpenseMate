@@ -24,7 +24,6 @@ function ViewFriend() {
     const { friendId } = useParams();
     const [friendDetails, setFriendDetails] = useState({});
     const [transactions, setTransactions] = useState([]);
-    // FIX: Removed unused 'balance' state variable. The 'balanceMessage' is used for display.
     const [balanceMessage, setBalanceMessage] = useState("");
     const [settleUpModalVisible, setSettleUpModalVisible] = useState(false);
 
@@ -41,7 +40,6 @@ function ViewFriend() {
         { label: "Paid", value: "paid", icon: <CheckCircleFilled /> },
     ];
 
-    // FIX: Wrapped the fetch function in useCallback to create a stable function reference.
     const fetchFriendDetails = useCallback(async () => {
         try {
             const user = JSON.parse(localStorage.getItem("User"));
@@ -77,8 +75,7 @@ function ViewFriend() {
             );
 
             setTransactions(transactionsResponse.data.transactions);
-            // The 'balance' state was removed, so this line is no longer needed.
-            // setBalance(transactionsResponse.data.balance);
+
 
         } catch (error) {
             console.error(error);
@@ -107,8 +104,7 @@ function ViewFriend() {
             if (response.status === 200) {
                 message.success("Settled successfully!");
                 setSettleUpModalVisible(false);
-                // The 'balance' state was removed, so this line is no longer needed.
-                // setBalance((prev) => prev - settleAmount);
+
                 fetchFriendDetails(); // Refetch all data to ensure consistency.
             } else {
                 message.error(response.data.message || "Settlement failed.");
@@ -119,7 +115,6 @@ function ViewFriend() {
         }
     };
 
-    // FIX: Added 'fetchFriendDetails' to the dependency array.
     useEffect(() => {
         fetchFriendDetails();
     }, [fetchFriendDetails]);

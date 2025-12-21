@@ -72,7 +72,7 @@ const friendTransactionSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes for performance optimization
+// Indexes 
 friendTransactionSchema.index({ transactionNumber: 1 }, { unique: true });
 friendTransactionSchema.index({ 'paidBy.user': 1, date: -1 }); // queries by payer with recent-first sorting
 friendTransactionSchema.index({ 'payees.user': 1, date: -1 }); // queries by payee with recent-first sorting

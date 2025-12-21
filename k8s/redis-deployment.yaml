@@ -59,7 +59,7 @@ spec:
           mountPath: /data
       volumes:
       - name: redis-storage
-        emptyDir: {} # For production, use PersistentVolumeClaim
+        emptyDir: {} 
 ---
 apiVersion: v1
 kind: Service

@@ -9,7 +9,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: standard # Change based on your cloud provider
+  storageClassName: standard 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
