@@ -19,31 +19,29 @@ pipeline {
             steps {
                 script {
                     // Create secrets.yaml from Jenkins credentials
-                    withCredentials([
-                        string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
-                        string(credentialsId: 'mongo-username', variable: 'MONGO_USER'),
-                        string(credentialsId: 'mongo-password', variable: 'MONGO_PASS'),
-                        string(credentialsId: 'redis-password', variable: 'REDIS_PASS')
-                    ]) {
-                        sh '''
-                            cat > k8s/secrets.yaml << 'EOF'
-                            apiVersion: v1
-                            kind: Secret
-                            metadata:
-                              name: splitwise-secrets
-                              namespace: splitwise
-                            type: Opaque
-                            stringData:
-                              JWT_SECRET: "${JWT_SECRET}"
-                              MONGO_USERNAME: "${MONGO_USER}"
-                              MONGO_PASSWORD: "${MONGO_PASS}"
-                              REDIS_PASSWORD: "${REDIS_PASS}"
-                            EOF
-                            chmod 600 k8s/secrets.yaml
-                        '''
-                    }
-                    
-                    sh 'npm install'
+                withCredentials([
+                    string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'mongo-username', variable: 'MONGO_USER'),
+                    string(credentialsId: 'mongo-password', variable: 'MONGO_PASS'),
+                    string(credentialsId: 'redis-password', variable: 'REDIS_PASS')
+                ]) {
+                    sh '''
+                        cat > k8s/secrets.yaml << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: splitwise-secrets
+  namespace: splitwise
+type: Opaque
+stringData:
+  JWT_SECRET: "${JWT_SECRET}"
+  MONGO_USERNAME: "${MONGO_USER}"
+  MONGO_PASSWORD: "${MONGO_PASS}"
+  REDIS_PASSWORD: "${REDIS_PASS}"
+EOF
+                        chmod 600 k8s/secrets.yaml
+                    '''
+                }                    sh 'npm install'
                 }
             }
         }

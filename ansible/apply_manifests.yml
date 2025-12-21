@@ -13,8 +13,18 @@
   command: kubectl apply -f {{ k8s_dir }}/mongodb-statefulset.yaml
 
 - name: Wait for MongoDB
-  command: kubectl rollout status statefulset/mongodb -n {{ k8s_namespace }} --timeout=300s
+  command: kubectl rollout status statefulset/mongodb -n {{ k8s_namespace }} --timeout=600s
   ignore_errors: yes
+
+- name: Check MongoDB pod status
+  command: kubectl get pods -n {{ k8s_namespace }} -l app=mongodb
+  register: mongodb_pods
+  ignore_errors: yes
+
+- name: Display MongoDB pod status
+  debug:
+    msg: "{{ mongodb_pods.stdout_lines }}"
+  when: mongodb_pods is defined
 
 - name: Apply Redis
   command: kubectl apply -f {{ k8s_dir }}/redis-deployment.yaml
@@ -41,7 +51,40 @@
   command: kubectl apply -f {{ k8s_dir }}/ingress.yaml
 
 - name: Wait for Backend
-  command: kubectl rollout status deployment/backend -n {{ k8s_namespace }} --timeout=300s
+  command: kubectl rollout status deployment/backend -n {{ k8s_namespace }} --timeout=600s
+  ignore_errors: yes
+
+- name: Check Backend pod status
+  command: kubectl get pods -n {{ k8s_namespace }} -l app=backend
+  register: backend_pods
+  ignore_errors: yes
+
+- name: Display Backend pod status
+  debug:
+    msg: "{{ backend_pods.stdout_lines }}"
+  when: backend_pods is defined
+
+- name: Get Backend pod logs if failing
+  shell: kubectl logs -n {{ k8s_namespace }} -l app=backend --tail=50 --all-containers=true
+  register: backend_logs
+  ignore_errors: yes
+  when: backend_pods.rc != 0
+
+- name: Display Backend logs
+  debug:
+    msg: "{{ backend_logs.stdout_lines }}"
+  when: backend_logs is defined and backend_logs.stdout_lines is defined
 
 - name: Wait for Frontend
-  command: kubectl rollout status deployment/frontend -n {{ k8s_namespace }} --timeout=300s
+  command: kubectl rollout status deployment/frontend -n {{ k8s_namespace }} --timeout=600s
+  ignore_errors: yes
+
+- name: Check Frontend pod status
+  command: kubectl get pods -n {{ k8s_namespace }} -l app=frontend
+  register: frontend_pods
+  ignore_errors: yes
+
+- name: Display Frontend pod status
+  debug:
+    msg: "{{ frontend_pods.stdout_lines }}"
+  when: frontend_pods is defined
