@@ -6,8 +6,7 @@ dotenv.config();
 const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/Expense_tracker";
 
 mongoose.connect(mongoUri, {
-    // useNewUrlParser and useUnifiedTopology are defaults in current mongoose versions,
-    // but we keep options object for clarity and future tweaks
+
 }).then(() => {
     console.log('MongoDB connected');
 }).catch((err) => {
