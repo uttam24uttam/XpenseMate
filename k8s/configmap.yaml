@@ -9,16 +9,3 @@ data:
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
   MONGO_URL: "mongodb://mongodb-service:27017/splitwise"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: splitwise-secrets
-  namespace: splitwise
-type: Opaque
-stringData:
-  # Change these in production - use sealed secrets or external secret management
-  JWT_SECRET: "your-super-secret-jwt-key-change-in-production"
-  MONGO_USERNAME: "admin"
-  MONGO_PASSWORD: "password"
-  REDIS_PASSWORD: "redispass"

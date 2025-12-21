@@ -21,7 +21,7 @@ function ManageFriends() {
         try {
             const user = JSON.parse(localStorage.getItem("User"));
             const userId = user?.user?._id || user?.user?.id || user?._id || user?.id;
-            const response = await axios.get(`http://localhost:5000/api/friends/get-friends/${userId}`);
+            const response = await axios.get(`/api/friends/get-friends/${userId}`);
             setFriends(response.data);
         } catch (error) {
             console.error(error);
@@ -36,7 +36,7 @@ function ManageFriends() {
         const user = JSON.parse(localStorage.getItem("User"));
         const userId = user?.user?._id || user?.user?.id || user?._id || user?.id;
         try {
-            const response = await axios.get(`http://localhost:5000/api/friends/get-overall-balance/${userId}`);
+            const response = await axios.get(`/api/friends/get-overall-balance/${userId}`);
             setOverallBalanceMessage(response.data.message || "");
         } catch (error) {
             console.error(error);
@@ -54,7 +54,7 @@ function ManageFriends() {
         try {
             const user = JSON.parse(localStorage.getItem("User"));
             const userId = user?.user?._id || user?.user?.id || user?._id || user?.id;
-            const response = await axios.post("http://localhost:5000/api/friends/add-friend", {
+            const response = await axios.post("/api/friends/add-friend", {
                 userId: userId,
                 friendEmail: searchEmail,   //email of friend
             });
@@ -208,26 +208,3 @@ export default ManageFriends;
 //   getFriends();
 //   getOverallBalance();
 // }, []);
-
-
-//     // ✅ Case 1: Runs only once (on mount)
-//     useEffect(() => {
-//         // Runs only when component is mounted (first render)
-//         // Example: Fetch data just once
-//         console.log("Component mounted!");
-//         fetchDataOnce();
-//     }, []); // empty dependency array
-
-//     // ✅ Case 2: Runs on every render
-//     useEffect(() => {
-//         // Runs after every render (no dependency array)
-//         // Example: Logging state changes
-//         console.log("Component rendered. Current count:", count);
-//     }); // no dependency array at all
-
-
-// // ✅ Case 3: Runs when SPECIFIC values change 
-// useEffect(() => {
-//   // This runs whenever "userId" changes
-//   // Example: Re-fetch user data when userId updates
-// }, [userId]); // dependency array with specific variable(s)

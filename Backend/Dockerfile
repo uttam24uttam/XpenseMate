@@ -1,4 +1,4 @@
-# Multi-stage build for Node.js backend
+# backend
 FROM node:18-alpine AS builder
 
 WORKDIR /app

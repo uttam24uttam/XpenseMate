@@ -50,6 +50,12 @@
         state: present
         src: "{{ k8s_manifests_dir }}/configmap.yaml"
 
+    - name: Apply Secrets (if exists)
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ k8s_manifests_dir }}/secrets.yaml"
+      ignore_errors: yes
+
     - name: Deploy MongoDB StatefulSet
       kubernetes.core.k8s:
         state: present
