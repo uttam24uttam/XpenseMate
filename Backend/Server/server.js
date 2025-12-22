@@ -7,6 +7,7 @@ import transactionRoute from "../Routes/transactionRoute.js";
 import friendRoute from "../Routes/friendRoute.js";
 import friendTransactionRoute from "../Routes/friendTransactionRoute.js";
 import { protect } from "../middleware/authMiddleware.js";
+const logger = require('../../logging/logger');
 
 dotenv.config();
 
@@ -42,6 +43,22 @@ app.use(cors({
     credentials: true
 }));
 app.use(express.json({ limit: '10kb' }));
+
+// Log 
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logger.info({
+            message: 'Incoming Request',
+            method: req.method,
+            url: req.originalUrl,
+            status: res.statusCode,
+            duration: `${duration}ms`
+        });
+    });
+    next();
+});
 
 // Public routes
 app.use("/api/users/", userRoute);
