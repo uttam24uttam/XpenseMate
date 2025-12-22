@@ -4,7 +4,7 @@
 
 - name: Create secrets via kubectl
   shell: |
-    kubectl create secret opaque splitwise-secrets \
+    kubectl create secret generic splitwise-secrets \
       --namespace={{ k8s_namespace }} \
       --from-literal=JWT_SECRET="{{ secret_jwt }}" \
       --from-literal=MONGO_USERNAME="{{ secret_mongo_user }}" \
