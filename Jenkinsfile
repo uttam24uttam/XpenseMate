@@ -1,3 +1,5 @@
+//Jenkinsfile pipeline
+
 pipeline {
     agent any
 
@@ -17,32 +19,6 @@ pipeline {
 
         stage('Setup Backend') {
             steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
-                        string(credentialsId: 'mongo-username', variable: 'MONGO_USER'),
-                        string(credentialsId: 'mongo-password', variable: 'MONGO_PASS'),
-                        string(credentialsId: 'redis-password', variable: 'REDIS_PASS')
-                    ]) {
-                        sh '''
-                            cat > k8s/secrets.yaml << EOF
-                            apiVersion: v1
-                            kind: Secret
-                            metadata:
-                              name: splitwise-secrets
-                              namespace: splitwise
-                            type: Opaque
-                            stringData:
-                              JWT_SECRET: "${JWT_SECRET}"
-                              MONGO_USERNAME: "${MONGO_USER}"
-                              MONGO_PASSWORD: "${MONGO_PASS}"
-                              REDIS_PASSWORD: "${REDIS_PASS}"
-                            EOF
-                            chmod 600 k8s/secrets.yaml
-                        '''
-                    }
-                }
-                
                 sh 'npm install'
             }
         }
@@ -88,20 +64,32 @@ pipeline {
 
         stage('Ansible Deployment') {
             steps {
-                ansiblePlaybook(
-                    inventory: 'ansible/inventory.ini',
-                    playbook: 'ansible/deploy.yml',
-                    colorized: true,
-                    disableHostKeyChecking: true,
-                    extras: '-e ansible_python_interpreter=/usr/bin/python3',
-                    extraVars: [
-                        docker_registry: 'uttamhamsaraj24',
-                        image_tag: 'latest',
-                        k8s_namespace: 'splitwise',
-                        backend_image: "${env.BACKEND_IMAGE_NAME}:latest",
-                        frontend_image: "${env.FRONTEND_IMAGE_NAME}:latest"
-                    ]
-                )
+                withCredentials([
+                    string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'mongo-username', variable: 'MONGO_USER'),
+                    string(credentialsId: 'mongo-password', variable: 'MONGO_PASS'),
+                    string(credentialsId: 'redis-password', variable: 'REDIS_PASS')
+                ]) {
+                    ansiblePlaybook(
+                        inventory: 'ansible/inventory.ini',
+                        playbook: 'ansible/deploy.yml',
+                        colorized: true,
+                        disableHostKeyChecking: true,
+                        extras: '-e ansible_python_interpreter=/usr/bin/python3',
+                        extraVars: [
+                            docker_registry: 'uttamhamsaraj24',
+                            image_tag: 'latest',
+                            k8s_namespace: 'splitwise',
+                            backend_image: "${env.BACKEND_IMAGE_NAME}:latest",
+                            frontend_image: "${env.FRONTEND_IMAGE_NAME}:latest",
+                            // Secrets 
+                            secret_jwt: "${JWT_SECRET}",
+                            secret_mongo_user: "${MONGO_USER}",
+                            secret_mongo_pass: "${MONGO_PASS}",
+                            secret_redis_pass: "${REDIS_PASS}"
+                        ]
+                    )
+                }
             }
         }
 
@@ -131,26 +119,15 @@ pipeline {
         failure {
             script {
                 echo "Build failed, rollback"
-                try {
-                    ansiblePlaybook(
-                        inventory: 'ansible/inventory.ini',
-                        playbook: 'ansible/rollback.yml',
-                        colorized: true,
-                        disableHostKeyChecking: true,
-                        extras: '-e ansible_python_interpreter=/usr/bin/python3',
-                        extraVars: [
-                            k8s_namespace: 'splitwise'
-                        ]
-                    )
-                    echo "Rollback completed successfully"
-                } catch (Exception e) {
-                    echo "Rollback failed: ${e.message}"
-                }
+                ansiblePlaybook(
+                    inventory: 'ansible/inventory.ini',
+                    playbook: 'ansible/rollback.yml',
+                    extraVars: [ k8s_namespace: 'splitwise' ]
+                )
             }
         }
-        
         success {
-            echo "Deployment successfull"
+            echo "Deployment successful"
         }
     }
 }
