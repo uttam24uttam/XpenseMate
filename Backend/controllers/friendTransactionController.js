@@ -269,7 +269,12 @@ export const getTransactions = async (req, res) => {
 
 // GET /api/friendTransactions/balance/:userId/:friendId
 export const getBalance = async (req, res) => {
+    // userId is the ID of the user whose dashboard is being viewed
+    // friendId is the ID of the friend shown on that dashboard
     const { userId, friendId } = req.params;
+
+    // In production, the logged-in user is the source of truth for "You"
+    const loggedInUserId = req.user?.id || userId;
 
     const internalSecretHeader = req.headers['x-internal-secret'];
     const hasValidInternalSecret = internalSecretHeader && process.env.INTERNAL_SECRET && internalSecretHeader === process.env.INTERNAL_SECRET;
@@ -279,7 +284,8 @@ export const getBalance = async (req, res) => {
     }
 
     try {
-        const cached = await cacheUtils.getBalance(userId, friendId);
+        const cacheKey = `${loggedInUserId}:${friendId}`;
+        const cached = await cacheUtils.getBalance(loggedInUserId, friendId);
         if (cached) return res.status(200).json(cached);
 
         const record = await FriendBalance.findOne({
@@ -290,8 +296,8 @@ export const getBalance = async (req, res) => {
         });
 
         if (!record) {
-            const result = { balanceMessage: `Everything is settled with this friend.`, balanceValue: 0, payerIsUser: false };
-            await cacheUtils.setBalance(userId, friendId, result, 300);
+            const result = { balanceMessage: `Everything is settled.`, balanceValue: 0, payerIsUser: false };
+            await cacheUtils.setBalance(loggedInUserId, friendId, result, 300);
             return res.status(200).json(result);
         }
 
@@ -303,33 +309,44 @@ export const getBalance = async (req, res) => {
         let absoluteBalance = Math.abs(balance);
         let payerIsUser = false;
 
-        // Logic based on Schema: user2 owes user1 the balance amount
-        if (user1.toString() === userId) {
-            // You are User1
+
+        // Schema: user2 owes user1 if balance is POSITIVE.
+        // Identify if the person SITTING AT THE COMPUTER (loggedInUserId) is user1 or user2.
+        const isLoggedUser1 = user1.toString() === loggedInUserId;
+
+        if (isLoggedUser1) {
+            // YOU are User1
             if (balance > 0) {
+                // user2 owes user1 (Friend owes YOU)
                 message = `${friend.name} owes you ₹${absoluteBalance}`;
-                payerIsUser = false; // Friend is the payer
+                payerIsUser = false;
             } else if (balance < 0) {
+                // user1 owes user2 (YOU owe Friend)
                 message = `You owe ${friend.name} ₹${absoluteBalance}`;
-                payerIsUser = true;  // You are the payer
+                payerIsUser = true;
             } else {
                 message = `Everything is settled with ${friend.name}`;
             }
         } else {
-            // You are User2
+            // YOU are User2
             if (balance > 0) {
+                // user2 owes user1 (YOU owe Friend)
                 message = `You owe ${friend.name} ₹${absoluteBalance}`;
-                payerIsUser = true;  // You are the payer
+                payerIsUser = true;
             } else if (balance < 0) {
+                // user1 owes user2 (Friend owes YOU)
                 message = `${friend.name} owes you ₹${absoluteBalance}`;
-                payerIsUser = false; // Friend is the payer
+                payerIsUser = false;
             } else {
                 message = `Everything is settled with ${friend.name}`;
             }
         }
 
         const result = { balanceMessage: message, balanceValue: absoluteBalance, payerIsUser };
-        await cacheUtils.setBalance(userId, friendId, result, 300);
+
+        // Store in cache for this specific user's perspective
+        await cacheUtils.setBalance(loggedInUserId, friendId, result, 300);
+
         res.status(200).json(result);
 
     } catch (error) {
@@ -337,8 +354,6 @@ export const getBalance = async (req, res) => {
         res.status(500).json({ message: "Balance check failed" });
     }
 };
-
-
 
 
 // POST /api/friendTransactions/settle-up
