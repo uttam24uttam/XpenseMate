@@ -3,7 +3,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const mongoUri = process.env.MONGO_URL || process.env.MONGO_URI || "mongodb://localhost:27017/Expense_tracker";
+
+const user = process.env.MONGO_USERNAME;
+const pass = process.env.MONGO_PASSWORD;
+const host = process.env.MONGO_HOST || "mongodb-service";
+const db = process.env.MONGO_DB || "splitwise";
+const mongoUri = process.env.MONGO_URL ||
+    (user && pass ? `mongodb://${user}:${pass}@${host}:27017/${db}?authSource=admin` : `mongodb://${host}:27017/${db}`);
 
 mongoose.connect(mongoUri, {
 

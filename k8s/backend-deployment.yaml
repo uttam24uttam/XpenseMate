@@ -38,6 +38,16 @@ spec:
             configMapKeyRef:
               name: splitwise-config
               key: MONGO_URL
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: splitwise-secrets
+              key: MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: splitwise-secrets
+              key: MONGO_PASSWORD
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:
