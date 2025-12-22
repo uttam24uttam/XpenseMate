@@ -7,7 +7,7 @@ pipeline {
     }
     
     stages {
-        stage('Stage 1: Git Clone') {
+        stage('Git Clone') {
             steps {
                 git branch: 'main',
                     credentialsId: 'github-token',
@@ -15,7 +15,7 @@ pipeline {
             }
         }
 
-        stage('Stage 2: Setup Backend') {
+        stage('Setup Backend') {
             steps {
                 script {
                     withCredentials([
@@ -26,18 +26,18 @@ pipeline {
                     ]) {
                         sh '''
                             cat > k8s/secrets.yaml << EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: splitwise-secrets
-  namespace: splitwise
-type: Opaque
-stringData:
-  JWT_SECRET: "${JWT_SECRET}"
-  MONGO_USERNAME: "${MONGO_USER}"
-  MONGO_PASSWORD: "${MONGO_PASS}"
-  REDIS_PASSWORD: "${REDIS_PASS}"
-EOF
+                            apiVersion: v1
+                            kind: Secret
+                            metadata:
+                              name: splitwise-secrets
+                              namespace: splitwise
+                            type: Opaque
+                            stringData:
+                              JWT_SECRET: "${JWT_SECRET}"
+                              MONGO_USERNAME: "${MONGO_USER}"
+                              MONGO_PASSWORD: "${MONGO_PASS}"
+                              REDIS_PASSWORD: "${REDIS_PASS}"
+                            EOF
                             chmod 600 k8s/secrets.yaml
                         '''
                     }
@@ -47,15 +47,15 @@ EOF
             }
         }
         
-        stage('Stage 3: Setup Frontend') {
+        stage('Setup Frontend') {
             steps {
                 dir('Frontend') {
                     sh 'npm install'
                 }
             }
         }
-
-        stage('Stage 4: Build and Push Backend Docker Image') {
+                            
+        stage('Build and Push Backend Docker Image') {
             steps {
                 script {
                     def backendImage = docker.build(env.BACKEND_IMAGE_NAME, '-f Backend/Dockerfile .')
@@ -66,7 +66,7 @@ EOF
             }
         }
 
-        stage('Stage 5: Build and Push Frontend Docker Image') {
+        stage('Build and Push Frontend Docker Image') {
             steps {
                 script {
                     def frontendImage = docker.build(env.FRONTEND_IMAGE_NAME, './Frontend')
@@ -77,7 +77,7 @@ EOF
             }
         }
 
-        stage('Stage 6: Clean Docker Images') {
+        stage('Clean Docker Images') {
             steps {
                 sh '''
                     docker container prune -f
@@ -86,7 +86,7 @@ EOF
             }
         }
 
-        stage('Stage 7: Ansible Deployment') {
+        stage('Ansible Deployment') {
             steps {
                 ansiblePlaybook(
                     inventory: 'ansible/inventory.ini',
@@ -105,7 +105,7 @@ EOF
             }
         }
 
-        stage('Stage 8: Verify Kubernetes Deployment') {
+        stage('Verify Kubernetes Deployment') {
             steps {
                 sh '''
                     kubectl wait --for=condition=available --timeout=300s \
@@ -130,7 +130,7 @@ EOF
     post {
         failure {
             script {
-                echo "Build failed. Initiating rollback..."
+                echo "Build failed, rollback"
                 try {
                     ansiblePlaybook(
                         inventory: 'ansible/inventory.ini',
@@ -150,7 +150,7 @@ EOF
         }
         
         success {
-            echo "Deployment completed successfully"
+            echo "Deployment successfull"
         }
     }
 }
