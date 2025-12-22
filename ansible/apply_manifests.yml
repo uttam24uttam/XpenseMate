@@ -32,6 +32,9 @@
 - name: Apply Backend Deployment
   command: kubectl apply -f {{ k8s_dir }}/backend-deployment.yaml
 
+- name: Restart Backend Deployment
+  command: kubectl rollout restart deployment/backend -n {{ k8s_namespace }}
+
 - name: Apply Backend Service
   command: kubectl apply -f {{ k8s_dir }}/backend-service.yaml
 
@@ -40,6 +43,9 @@
 
 - name: Apply Frontend Deployment
   command: kubectl apply -f {{ k8s_dir }}/frontend-deployment.yaml
+
+- name: Restart Frontend Deployment
+  command: kubectl rollout restart deployment/frontend -n {{ k8s_namespace }}
 
 - name: Apply Frontend Service
   command: kubectl apply -f {{ k8s_dir }}/frontend-service.yaml

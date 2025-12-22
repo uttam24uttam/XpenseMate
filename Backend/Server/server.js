@@ -23,22 +23,23 @@ if (!process.env.JWT_SECRET) {
     }
 }
 
-// Configure CORS
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").split(',').map(s => s.trim());
+// Configure CORS (allow localhost and minikube frontend)
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.49.2:30633', // Minikube frontend-service
+];
 
-const corsOptions = {
+app.use(cors({
     origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        if (process.env.NODE_ENV !== 'production') return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
         }
-    }
-};
-
-app.use(cors(corsOptions));
+    },
+    credentials: true
+}));
 app.use(express.json({ limit: '10kb' }));
 
 // Public routes
