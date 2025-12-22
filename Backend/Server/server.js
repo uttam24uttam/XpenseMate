@@ -23,7 +23,7 @@ if (!process.env.JWT_SECRET) {
     }
 }
 
-// Configure CORS (allow localhost and minikube frontend)
+// Configure CORS 
 const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',

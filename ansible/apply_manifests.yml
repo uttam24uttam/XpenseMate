@@ -1,5 +1,5 @@
 ---
-- name: Ensure Namespace exists
+- name: Namespace Check
   command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
 
 - name: Apply Base Configurations
@@ -14,7 +14,7 @@
     - mongodb-statefulset.yaml
     - redis-deployment.yaml
 
-- name: Wait for Databases to be Ready
+- name: Database readiness check
   command: "kubectl rollout status {{ item }} -n {{ k8s_namespace }} --timeout=300s"
   loop:
     - statefulset/mongodb

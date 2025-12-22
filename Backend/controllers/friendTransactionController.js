@@ -327,7 +327,7 @@ export const getBalance = async (req, res) => {
             if (balance > 0) {
                 message = `You owe ${friend.name} ₹${absoluteBalance}`;
             } else if (balance < 0) {
-                message = `${friend.name} owes you ₹${absoluteBalance}`;
+                message = `You are owed by ${friend.name} ₹${absoluteBalance}`;
             } else {
                 message = `Everything is settled with ${friend.name}`;
             }
