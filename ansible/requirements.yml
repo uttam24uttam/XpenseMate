@@ -1,4 +1,4 @@
-# Ansible Requirements
+# Ansible requirements
 # ansible-galaxy collection install -r requirements.yml
 
 collections:
