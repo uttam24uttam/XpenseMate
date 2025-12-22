@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/Expense_tracker";
+const mongoUri = process.env.MONGO_URL || process.env.MONGO_URI || "mongodb://localhost:27017/Expense_tracker";
 
 mongoose.connect(mongoUri, {
 
