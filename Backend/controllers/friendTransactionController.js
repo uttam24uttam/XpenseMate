@@ -269,91 +269,103 @@ export const getTransactions = async (req, res) => {
 
 // GET /api/friendTransactions/balance/:userId/:friendId
 export const getBalance = async (req, res) => {
-    // userId is the ID of the user whose dashboard is being viewed
-    // friendId is the ID of the friend shown on that dashboard
-    const { userId, friendId } = req.params;
 
-    // In production, the logged-in user is the source of truth for "You"
-    const loggedInUserId = req.user?.id || userId;
+    const { friendId } = req.params;
 
-    const internalSecretHeader = req.headers['x-internal-secret'];
-    const hasValidInternalSecret = internalSecretHeader && process.env.INTERNAL_SECRET && internalSecretHeader === process.env.INTERNAL_SECRET;
-
-    if (!hasValidInternalSecret && !req.user) {
-        return res.status(401).json({ message: 'Not authorized' });
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authorized" });
     }
 
-    try {
-        const cacheKey = `${loggedInUserId}:${friendId}`;
-        const cached = await cacheUtils.getBalance(loggedInUserId, friendId);
-        if (cached) return res.status(200).json(cached);
+    const loggedInUserId = req.user.id;
 
+    try {
+        // Cache check (user-specific perspective)
+        const cached = await cacheUtils.getBalance(loggedInUserId, friendId);
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
+        // Fetch balance record
         const record = await FriendBalance.findOne({
             $or: [
-                { user1: userId, user2: friendId },
-                { user1: friendId, user2: userId }
+                { user1: loggedInUserId, user2: friendId },
+                { user1: friendId, user2: loggedInUserId }
             ]
         });
 
         if (!record) {
-            const result = { balanceMessage: `Everything is settled.`, balanceValue: 0, payerIsUser: false };
+            const result = {
+                balanceMessage: "Everything is settled.",
+                balanceValue: 0,
+                payerIsUser: false
+            };
             await cacheUtils.setBalance(loggedInUserId, friendId, result, 300);
             return res.status(200).json(result);
         }
 
         const { user1, user2, balance } = record;
-        const friend = await User.findById(friendId);
-        if (!friend) return res.status(404).json({ message: "Friend not found." });
 
-        let message = "";
-        let absoluteBalance = Math.abs(balance);
+        const friend = await User.findById(friendId).select("name");
+        if (!friend) {
+            return res.status(404).json({ message: "Friend not found." });
+        }
+
+        const absBalance = Math.abs(balance);
+        let balanceMessage = "";
         let payerIsUser = false;
 
+        /**
+         * Schema rule:
+         * balance > 0  → user2 owes user1
+         * balance < 0  → user1 owes user2
+         */
+        const loggedUserIsUser1 = user1.toString() === loggedInUserId;
 
-        // Schema: user2 owes user1 if balance is POSITIVE.
-        // Identify if the person SITTING AT THE COMPUTER (loggedInUserId) is user1 or user2.
-        const isLoggedUser1 = user1.toString() === loggedInUserId;
-
-        if (isLoggedUser1) {
-            // YOU are User1
+        if (loggedUserIsUser1) {
             if (balance > 0) {
-                // user2 owes user1 (Friend owes YOU)
-                message = `${friend.name} owes you ₹${absoluteBalance}`;
+                // Friend owes YOU
+                balanceMessage = `${friend.name} owes you ₹${absBalance}`;
                 payerIsUser = false;
             } else if (balance < 0) {
-                // user1 owes user2 (YOU owe Friend)
-                message = `You owe ${friend.name} ₹${absoluteBalance}`;
+                // YOU owe friend
+                balanceMessage = `You owe ${friend.name} ₹${absBalance}`;
                 payerIsUser = true;
             } else {
-                message = `Everything is settled with ${friend.name}`;
+                balanceMessage = `Everything is settled with ${friend.name}`;
             }
         } else {
-            // YOU are User2
+            // Logged-in user is user2
             if (balance > 0) {
-                // user2 owes user1 (YOU owe Friend)
-                message = `You owe ${friend.name} ₹${absoluteBalance}`;
+                // YOU owe friend
+                balanceMessage = `You owe ${friend.name} ₹${absBalance}`;
                 payerIsUser = true;
             } else if (balance < 0) {
-                // user1 owes user2 (Friend owes YOU)
-                message = `${friend.name} owes you ₹${absoluteBalance}`;
+                // Friend owes YOU
+                balanceMessage = `${friend.name} owes you ₹${absBalance}`;
                 payerIsUser = false;
             } else {
-                message = `Everything is settled with ${friend.name}`;
+                balanceMessage = `Everything is settled with ${friend.name}`;
             }
         }
 
-        const result = { balanceMessage: message, balanceValue: absoluteBalance, payerIsUser };
+        const result = {
+            balanceMessage,
+            balanceValue: absBalance,
+            payerIsUser
+        };
 
-        // Store in cache for this specific user's perspective
+        // Cache result (user-specific)
         await cacheUtils.setBalance(loggedInUserId, friendId, result, 300);
 
-        res.status(200).json(result);
+        return res.status(200).json(result);
 
     } catch (error) {
         console.error("Balance error:", error);
-        res.status(500).json({ message: "Balance check failed" });
+        return res.status(500).json({ message: "Balance check failed" });
     }
 };
+
+
 
 
 // POST /api/friendTransactions/settle-up
