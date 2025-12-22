@@ -7,20 +7,25 @@ import { cacheUtils } from '../config/redis.js';
 
 //update friend balance
 const updateFriendBalance = async (fromUser, toUser, amount, session = null) => {
-    let record = await FriendBalance.findOne({ user1: toUser, user2: fromUser }).session(session);
+    const [u1, u2] = [fromUser, toUser].sort();
+    const isOriginalOrder = u1 === fromUser;
 
-    if (record) {
-        record.balance += amount;
+    let record = await FriendBalance.findOne({ user1: u1, user2: u2 }).session(session);
+
+    if (!record) {
+        // If no record, create one. If 'fromUser' paid for 'toUser', 
+        // and we store as (u1, u2), if fromUser is u1, balance is POSITIVE (u2 owes u1)
+        // If fromUser is u2, balance is NEGATIVE (u1 owes u2)
+        const initialBalance = isOriginalOrder ? amount : -amount;
+        record = new FriendBalance({ user1: u1, user2: u2, balance: initialBalance, status: 'active' });
     } else {
-        let reverse = await FriendBalance.findOne({ user1: fromUser, user2: toUser }).session(session);
-        if (reverse) {
-            reverse.balance -= amount;
-            await reverse.save({ session });
-            await cacheUtils.invalidateBalance(fromUser, toUser);
-            return;
+        // Update existing: if the payer is u1, u2 owes u1 more (increase balance)
+        // if the payer is u2, u1 owes u2 more (decrease balance)
+        if (isOriginalOrder) {
+            record.balance += amount;
+        } else {
+            record.balance -= amount;
         }
-
-        record = new FriendBalance({ user1: toUser, user2: fromUser, balance: amount, status: 'active' });
     }
 
     await record.save({ session });
@@ -212,62 +217,55 @@ export const getTransactions = async (req, res) => {
         }).populate("settlements.from", "name").populate("settlements.to", "name").lean();
 
         const formattedTransactions = allTransactions.map((txn) => {
-            const getName = (val) => {
-                if (!val) return "Unknown";
-                if (typeof val === 'object' && val.name) return val.name;
-                try { return (val && val.toString) ? val.toString() : String(val); } catch { return "Unknown"; }
-            };
+            const getId = (val) => (val?._id ? val._id.toString() : val?.toString());
+            const getName = (val) => (typeof val === 'object' ? val?.name : "Unknown");
 
+            // Handle Settlements (Settle Up actions)
             if (txn.category === 'Settlement') {
-                const settlementInfo = txn.settlements && txn.settlements[0];
-                const fromName = getName(settlementInfo?.from);
-                const toName = getName(settlementInfo?.to);
+                const s = txn.settlements?.[0];
+                const isPayer = getId(s?.from) === userId;
+                const otherName = getName(isPayer ? s?.to : s?.from);
+
                 return {
                     ...txn,
-                    description: `${fromName} settled with ${toName}`,
-                    balanceMessage: `Paid`,
-                    amount: settlementInfo?.amount || 0,
+                    description: isPayer ? `You settled with ${otherName}` : `${otherName} settled with you`,
+                    balanceMessage: isPayer ? `Paid` : `Received`,
+                    amount: s?.amount || 0,
                     formattedDate: moment(txn.date).format("DD-MM-YYYY"),
                     formattedTime: moment(txn.date).format("HH:mm"),
                 };
             }
 
-            const getId = (val) => {
-                if (!val) return null;
-                if (val._id) return val._id.toString();
-                return val.toString();
-            };
-
+            // Handle Expense Transactions (Split bills)
             const pair = txn.settlements.find(s => {
-                const fromId = getId(s.from);
-                const toId = getId(s.to);
-                if (!fromId || !toId) return false;
-                return (fromId === userId && toId === friendId) || (fromId === friendId && toId === userId);
+                const f = getId(s.from);
+                const t = getId(s.to);
+                return (f === userId && t === friendId) || (f === friendId && t === userId);
             });
 
             if (!pair) return null;
 
-            const isLender = getId(pair.to) === userId;
-            const amount = pair.amount || 0;
-            const balanceMessage = isLender ? `You lent` : `You borrowed`;
-
+            const isLender = getId(pair.to) === userId; // If pair.to is you, friend paid for you (You lent)
             return {
                 ...txn,
                 formattedDate: moment(txn.date).format("DD-MM-YYYY"),
                 formattedTime: moment(txn.date).format("HH:mm"),
-                balanceMessage,
-                amount
+                balanceMessage: isLender ? `You lent` : `You borrowed`,
+                amount: pair.amount || 0
             };
         }).filter(Boolean);
 
         const sortedRecords = formattedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-
         res.status(200).json({ transactions: sortedRecords });
+
     } catch (err) {
-        console.error("Fetch error:", err);
+        console.error("Fetch error:", err); s
         res.status(500).json({ message: "Failed to fetch transactions" });
     }
 };
+
+
+
 
 // GET /api/friendTransactions/balance/:userId/:friendId
 export const getBalance = async (req, res) => {
@@ -282,9 +280,7 @@ export const getBalance = async (req, res) => {
 
     try {
         const cached = await cacheUtils.getBalance(userId, friendId);
-        if (cached) {
-            return res.status(200).json(cached);
-        }
+        if (cached) return res.status(200).json(cached);
 
         const record = await FriendBalance.findOne({
             $or: [
@@ -301,49 +297,49 @@ export const getBalance = async (req, res) => {
 
         const { user1, user2, balance } = record;
         const friend = await User.findById(friendId);
-
-        if (!friend) {
-            return res.status(404).json({ message: "Friend not found." });
-        }
+        if (!friend) return res.status(404).json({ message: "Friend not found." });
 
         let message = "";
         let absoluteBalance = Math.abs(balance);
+        let payerIsUser = false;
 
-        // Schema: user2 owes user1 the balance amount
-        // If balance is POSITIVE: user2 owes user1
-        // If balance is NEGATIVE: user1 owes user2
-
+        // Logic based on Schema: user2 owes user1 the balance amount
         if (user1.toString() === userId) {
-            // You are user1
+            // You are User1
             if (balance > 0) {
                 message = `${friend.name} owes you ₹${absoluteBalance}`;
+                payerIsUser = false; // Friend is the payer
             } else if (balance < 0) {
                 message = `You owe ${friend.name} ₹${absoluteBalance}`;
+                payerIsUser = true;  // You are the payer
             } else {
                 message = `Everything is settled with ${friend.name}`;
             }
-        } else if (user2.toString() === userId) {
-            // You are user2
+        } else {
+            // You are User2
             if (balance > 0) {
                 message = `You owe ${friend.name} ₹${absoluteBalance}`;
+                payerIsUser = true;  // You are the payer
             } else if (balance < 0) {
-                message = `You are owed by ${friend.name} ₹${absoluteBalance}`;
+                message = `${friend.name} owes you ₹${absoluteBalance}`;
+                payerIsUser = false; // Friend is the payer
             } else {
                 message = `Everything is settled with ${friend.name}`;
             }
         }
 
-        const payerIsUser = (user2.toString() === userId && balance > 0) || (user1.toString() === userId && balance < 0);
         const result = { balanceMessage: message, balanceValue: absoluteBalance, payerIsUser };
-
         await cacheUtils.setBalance(userId, friendId, result, 300);
-
         res.status(200).json(result);
+
     } catch (error) {
         console.error("Balance error:", error);
         res.status(500).json({ message: "Balance check failed" });
     }
 };
+
+
+
 
 // POST /api/friendTransactions/settle-up
 export const settleUp = async (req, res) => {
