@@ -2,26 +2,20 @@
 - name: Namespace Check
   command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
 
-# 
-- name: Create Secrets dynamically
-  kubernetes.core.k8s:
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: splitwise-secrets
-        namespace: "{{ k8s_namespace }}"
-      type: Opaque
-      stringData:
-        JWT_SECRET: "{{ secret_jwt }}"
-        MONGO_USERNAME: "{{ secret_mongo_user }}"
-        MONGO_PASSWORD: "{{ secret_mongo_pass }}"
-        REDIS_PASSWORD: "{{ secret_redis_pass }}"
+- name: Create Secrets via kubectl
+  shell: |
+    kubectl create secret opaque splitwise-secrets \
+      --namespace={{ k8s_namespace }} \
+      --from-literal=JWT_SECRET="{{ secret_jwt }}" \
+      --from-literal=MONGO_USERNAME="{{ secret_mongo_user }}" \
+      --from-literal=MONGO_PASSWORD="{{ secret_mongo_pass }}" \
+      --from-literal=REDIS_PASSWORD="{{ secret_redis_pass }}" \
+      --dry-run=client -o yaml | kubectl apply -f -
 
 - name: Apply Base Configurations
   command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
   loop:
-    - configmap.yaml  
+    - configmap.yaml
 
 - name: Apply Databases
   command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
