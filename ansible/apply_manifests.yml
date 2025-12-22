@@ -2,11 +2,26 @@
 - name: Namespace Check
   command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
 
+# 
+- name: Create Secrets dynamically
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: splitwise-secrets
+        namespace: "{{ k8s_namespace }}"
+      type: Opaque
+      stringData:
+        JWT_SECRET: "{{ secret_jwt }}"
+        MONGO_USERNAME: "{{ secret_mongo_user }}"
+        MONGO_PASSWORD: "{{ secret_mongo_pass }}"
+        REDIS_PASSWORD: "{{ secret_redis_pass }}"
+
 - name: Apply Base Configurations
   command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
   loop:
-    - configmap.yaml
-    - secrets.yaml
+    - configmap.yaml  
 
 - name: Apply Databases
   command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
@@ -27,7 +42,7 @@
     - backend-service.yaml
     - backend-hpa.yaml
 
-- name: Force Backend Restart (Pick up config changes)
+- name: Force Backend Restart
   command: "kubectl rollout restart deployment/backend -n {{ k8s_namespace }}"
 
 - name: Wait for Backend Rollout
