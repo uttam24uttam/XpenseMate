@@ -24,7 +24,7 @@ const updateFriendBalance = async (fromUser, toUser, amount, session = null) => 
     }
 
     await record.save({ session });
-    //redis cache invalidation
+    //redis cache  invalidation
     await cacheUtils.invalidateBalance(fromUser, toUser);
 };
 
