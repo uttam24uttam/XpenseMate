@@ -52,3 +52,11 @@
 
 - name: Force Frontend Restart
   command: "kubectl rollout restart deployment/frontend -n {{ k8s_namespace }}"
+
+- name: Apply ELK Stack
+  command: "kubectl apply -f {{ item }}"
+  loop:
+    - ../logging/elasticsearch-deployment.yaml
+    - ../logging/logstash-pipeline-configmap.yaml
+    - ../logging/logstash-deployment.yaml
+    - ../logging/kibana-deployment.yaml
