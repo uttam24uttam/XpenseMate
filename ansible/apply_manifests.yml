@@ -2,7 +2,7 @@
 - name: Namespace Check
   command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
 
-- name: Create Secrets via kubectl
+- name: Create secrets via kubectl
   shell: |
     kubectl create secret opaque splitwise-secrets \
       --namespace={{ k8s_namespace }} \
