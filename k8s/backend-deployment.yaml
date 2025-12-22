@@ -1,10 +1,103 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: backend
+#   namespace: splitwise
+#   labels:
+#     app: backend
+# spec:
+#   replicas: 3
+#   selector:
+#     matchLabels:
+#       app: backend
+#   template:
+#     metadata:
+#       labels:
+#         app: backend
+#     spec:
+#       containers:
+#       - name: backend
+#         image: uttamhamsaraj24/splitwise-backend:latest 
+#         imagePullPolicy: Always
+#         ports:
+#         - containerPort: 5000
+#           name: http
+#         env:
+#         - name: NODE_ENV
+#           valueFrom:
+#             configMapKeyRef:
+#               name: splitwise-config
+#               key: NODE_ENV
+#         - name: PORT
+#           valueFrom:
+#             configMapKeyRef:
+#               name: splitwise-config
+#               key: PORT
+#         - name: MONGO_URL
+#           valueFrom:
+#             configMapKeyRef:
+#               name: splitwise-config
+#               key: MONGO_URL
+#         - name: MONGO_USERNAME
+#           valueFrom:
+#             secretKeyRef:
+#               name: splitwise-secrets
+#               key: MONGO_USERNAME
+#         - name: MONGO_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: splitwise-secrets
+#               key: MONGO_PASSWORD
+#         - name: REDIS_HOST
+#           valueFrom:
+#             configMapKeyRef:
+#               name: splitwise-config
+#               key: REDIS_HOST
+#         - name: REDIS_PORT
+#           valueFrom:
+#             configMapKeyRef:
+#               name: splitwise-config
+#               key: REDIS_PORT
+#         - name: JWT_SECRET
+#           valueFrom:
+#             secretKeyRef:
+#               name: splitwise-secrets
+#               key: JWT_SECRET
+#         - name: REDIS_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: splitwise-secrets
+#               key: REDIS_PASSWORD
+#         resources:
+#           requests:
+#             memory: "256Mi"
+#             cpu: "250m"
+#           limits:
+#             memory: "512Mi"
+#             cpu: "500m"
+#         livenessProbe:
+#           httpGet:
+#             path: /
+#             port: 5000
+#           initialDelaySeconds: 40
+#           periodSeconds: 30
+#           timeoutSeconds: 10
+#           failureThreshold: 3
+#         readinessProbe:
+#           httpGet:
+#             path: /
+#             port: 5000
+#           initialDelaySeconds: 10
+#           periodSeconds: 10
+#           timeoutSeconds: 5
+#           failureThreshold: 3
+
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
   namespace: splitwise
-  labels:
-    app: backend
 spec:
   replicas: 3
   selector:
@@ -21,8 +114,8 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
-          name: http
         env:
+        # From ConfigMap
         - name: NODE_ENV
           valueFrom:
             configMapKeyRef:
@@ -33,21 +126,16 @@ spec:
             configMapKeyRef:
               name: splitwise-config
               key: PORT
-        - name: MONGO_URL
+        - name: MONGO_HOST
           valueFrom:
             configMapKeyRef:
               name: splitwise-config
-              key: MONGO_URL
-        - name: MONGO_USERNAME
+              key: MONGO_HOST
+        - name: MONGO_DB
           valueFrom:
-            secretKeyRef:
-              name: splitwise-secrets
-              key: MONGO_USERNAME
-        - name: MONGO_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: splitwise-secrets
-              key: MONGO_PASSWORD
+            configMapKeyRef:
+              name: splitwise-config
+              key: MONGO_DB
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:
@@ -58,6 +146,17 @@ spec:
             configMapKeyRef:
               name: splitwise-config
               key: REDIS_PORT
+        # From Secret
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: splitwise-secrets
+              key: MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: splitwise-secrets
+              key: MONGO_PASSWORD
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
@@ -68,26 +167,3 @@ spec:
             secretKeyRef:
               name: splitwise-secrets
               key: REDIS_PASSWORD
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 40
-          periodSeconds: 30
-          timeoutSeconds: 10
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3

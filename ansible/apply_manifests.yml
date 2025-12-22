@@ -1,96 +1,45 @@
 ---
-- name: Apply namespace
-  command: kubectl apply -f {{ k8s_dir }}/namespace.yaml
+- name: Ensure Namespace exists
+  command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
 
-- name: Apply configmap
-  command: kubectl apply -f {{ k8s_dir }}/configmap.yaml
+- name: Apply Base Configurations
+  command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
+  loop:
+    - configmap.yaml
+    - secrets.yaml
 
-- name: Apply secrets
-  command: kubectl apply -f {{ k8s_dir }}/secrets.yaml
-  ignore_errors: yes
+- name: Apply Databases
+  command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
+  loop:
+    - mongodb-statefulset.yaml
+    - redis-deployment.yaml
 
-- name: Apply MongoDB StatefulSet
-  command: kubectl apply -f {{ k8s_dir }}/mongodb-statefulset.yaml
+- name: Wait for Databases to be Ready
+  command: "kubectl rollout status {{ item }} -n {{ k8s_namespace }} --timeout=300s"
+  loop:
+    - statefulset/mongodb
+    - deployment/redis
 
-- name: Wait for MongoDB
-  command: kubectl rollout status statefulset/mongodb -n {{ k8s_namespace }} --timeout=600s
-  ignore_errors: yes
+- name: Apply Backend Resources
+  command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
+  loop:
+    - backend-deployment.yaml
+    - backend-service.yaml
+    - backend-hpa.yaml
 
-- name: Check MongoDB pod status
-  command: kubectl get pods -n {{ k8s_namespace }} -l app=mongodb
-  register: mongodb_pods
-  ignore_errors: yes
+- name: Force Backend Restart (Pick up config changes)
+  command: "kubectl rollout restart deployment/backend -n {{ k8s_namespace }}"
 
-- name: Display MongoDB pod status
-  debug:
-    msg: "{{ mongodb_pods.stdout_lines }}"
-  when: mongodb_pods is defined
+- name: Wait for Backend Rollout
+  command: "kubectl rollout status deployment/backend -n {{ k8s_namespace }} --timeout=300s"
 
-- name: Apply Redis
-  command: kubectl apply -f {{ k8s_dir }}/redis-deployment.yaml
+- name: Apply Frontend Resources
+  command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
+  loop:
+    - frontend-deployment.yaml
+    - frontend-service.yaml
+    - frontend-hpa.yaml
+    - ingress.yaml
 
-- name: Apply Backend Deployment
-  command: kubectl apply -f {{ k8s_dir }}/backend-deployment.yaml
-
-- name: Restart Backend Deployment
-  command: kubectl rollout restart deployment/backend -n {{ k8s_namespace }}
-
-- name: Apply Backend Service
-  command: kubectl apply -f {{ k8s_dir }}/backend-service.yaml
-
-- name: Apply Backend HPA
-  command: kubectl apply -f {{ k8s_dir }}/backend-hpa.yaml
-
-- name: Apply Frontend Deployment
-  command: kubectl apply -f {{ k8s_dir }}/frontend-deployment.yaml
-
-- name: Restart Frontend Deployment
-  command: kubectl rollout restart deployment/frontend -n {{ k8s_namespace }}
-
-- name: Apply Frontend Service
-  command: kubectl apply -f {{ k8s_dir }}/frontend-service.yaml
-
-- name: Apply Frontend HPA
-  command: kubectl apply -f {{ k8s_dir }}/frontend-hpa.yaml
-
-- name: Apply Ingress
-  command: kubectl apply -f {{ k8s_dir }}/ingress.yaml
-
-- name: Wait for Backend
-  command: kubectl rollout status deployment/backend -n {{ k8s_namespace }} --timeout=600s
-  ignore_errors: yes
-
-- name: Check Backend pod status
-  command: kubectl get pods -n {{ k8s_namespace }} -l app=backend
-  register: backend_pods
-  ignore_errors: yes
-
-- name: Display Backend pod status
-  debug:
-    msg: "{{ backend_pods.stdout_lines }}"
-  when: backend_pods is defined
-
-- name: Get Backend pod logs if failing
-  shell: kubectl logs -n {{ k8s_namespace }} -l app=backend --tail=50 --all-containers=true
-  register: backend_logs
-  ignore_errors: yes
-  when: backend_pods.rc != 0
-
-- name: Display Backend logs
-  debug:
-    msg: "{{ backend_logs.stdout_lines }}"
-  when: backend_logs is defined and backend_logs.stdout_lines is defined
-
-- name: Wait for Frontend
-  command: kubectl rollout status deployment/frontend -n {{ k8s_namespace }} --timeout=600s
-  ignore_errors: yes
-
-- name: Check Frontend pod status
-  command: kubectl get pods -n {{ k8s_namespace }} -l app=frontend
-  register: frontend_pods
-  ignore_errors: yes
-
-- name: Display Frontend pod status
-  debug:
-    msg: "{{ frontend_pods.stdout_lines }}"
-  when: frontend_pods is defined
+- name: Force Frontend Restart
+  command: "kubectl rollout restart deployment/frontend -n {{ k8s_namespace }}"
