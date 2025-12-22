@@ -11,10 +11,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - splitwise.yourdomain.com
+    - xpensemate.com
     secretName: splitwise-tls
   rules:
-  - host: splitwise.yourdomain.com
+  - host: xpensemate.com
     http:
       paths:
       - path: /api
