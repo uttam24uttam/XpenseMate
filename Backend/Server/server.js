@@ -28,6 +28,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://192.168.49.2:30633', // Minikube frontend-service
+    'https://xpensemate.com' //ingress host
 ];
 
 app.use(cors({
