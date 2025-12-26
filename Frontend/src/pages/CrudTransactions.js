@@ -18,7 +18,7 @@ function CrudTransactions(props) {
 
         try {
             if (props.selectedTransactionForEdit) {
-                const response = await axios.post("api/transactions/edit-transaction", { payload: { ...values, userid: userId }, transactionID: props.selectedTransactionForEdit._id }) //sends to db
+                const response = await axios.put("api/transactions/edit-transaction", { payload: { ...values, userid: userId }, transactionID: props.selectedTransactionForEdit._id }) //sends to db
                 message.success("Transaction Edited Succesfully")
                 props.getTransaction()       //gets the whole db , and inside this function it sets the whole db into trasactionData which is used to form table
                 console.log("Succesfully sent", response.data)

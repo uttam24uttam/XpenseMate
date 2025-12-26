@@ -21,7 +21,7 @@ function ManageFriends() {
         try {
             const user = JSON.parse(localStorage.getItem("User"));
             const userId = user?.user?._id || user?.user?.id || user?._id || user?.id;
-            const response = await axios.get(`/api/friends/get-friends/${userId}`);
+            const response = await axios.get(`/api/friends/get-friends`);
             setFriends(response.data);
         } catch (error) {
             console.error(error);
@@ -36,7 +36,7 @@ function ManageFriends() {
         const user = JSON.parse(localStorage.getItem("User"));
         const userId = user?.user?._id || user?.user?.id || user?._id || user?.id;
         try {
-            const response = await axios.get(`/api/friends/get-overall-balance/${userId}`);
+            const response = await axios.get(`/api/friends/get-overall-balance`);
             setOverallBalanceMessage(response.data.message || "");
         } catch (error) {
             console.error(error);

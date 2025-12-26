@@ -62,7 +62,7 @@ function ViewFriend() {
 
             //overall friend balance
             const balanceResponse = await axios.get(
-                `/api/friend-transactions/balance/${userId}/${friendId}`
+                `/api/friendTransactions/balance/${friendId}`
             );
 
             if (balanceResponse.data.balanceMessage) {
@@ -71,7 +71,7 @@ function ViewFriend() {
 
             //transaction list
             const transactionsResponse = await axios.get(
-                `/api/friend-transactions/transactions/${userId}/${friendId}`
+                `/api/friendTransactions/transactions/${friendId}`
             );
 
             setTransactions(transactionsResponse.data.transactions);
@@ -95,7 +95,7 @@ function ViewFriend() {
                 return;
             }
 
-            const response = await axios.post("/api/friend-transactions/settle-up", {
+            const response = await axios.post("/api/friendTransactions/settle-up", {
                 userId,
                 friendId,
                 settleAmount: Number(settleAmount),
