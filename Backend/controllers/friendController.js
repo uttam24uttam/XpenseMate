@@ -5,7 +5,8 @@ import FriendBalance from '../models/FriendBalance.js';
 export const addFriend = async (req, res) => {
     console.log(" add friend being hit-1");
 
-    const { userId, friendEmail } = req.body;
+    const userId = req.user.id;
+    const { friendEmail } = req.body;
 
     console.log(" add friend being hit -2");
 
@@ -22,12 +23,10 @@ export const addFriend = async (req, res) => {
             return res.status(404).json({ message: "Friend not found" });
         }
 
-        // Prevent adding oneself as a friend
         if (friend._id.equals(loggedInUser._id)) {
             return res.status(400).json({ message: "Cannot add yourself as a friend" });
         }
 
-        // Check if friendship already exists
         const [smallerId, largerId] = [userId, friend._id.toString()].sort();
         const existingFriendship = await FriendBalance.findOne({
             user1: smallerId,
@@ -39,7 +38,6 @@ export const addFriend = async (req, res) => {
             return res.status(400).json({ message: "Friend already added" });
         }
 
-        // Create new friendship with zero balance
         const newFriendship = new FriendBalance({
             user1: smallerId,
             user2: largerId,
@@ -58,14 +56,13 @@ export const addFriend = async (req, res) => {
     }
 };
 
-// GET /api/friends/get-friends/:userId
+// GET /api/friends/get-friends
 export const getFriends = async (req, res) => {
-    const { userId } = req.params;
+    const userId = req.user.id;
     console.log("getttttttt1");
     try {
         console.log("getttttttt2");
 
-        // Find all friendships where user is either user1 or user2
         const friendships = await FriendBalance.find({
             $or: [{ user1: userId }, { user2: userId }],
             status: 'active'
@@ -77,12 +74,10 @@ export const getFriends = async (req, res) => {
             return res.status(200).json([]);
         }
 
-        // Extract friend IDs
         const friendIds = friendships.map(f =>
             f.user1.toString() === userId ? f.user2 : f.user1
         );
 
-        // Fetch friend details
         const friends = await usermodel.find({ _id: { $in: friendIds } }, 'name email');
 
         console.log("getttttttt4");
@@ -134,9 +129,9 @@ export const getFriendDetails = async (req, res) => {
     }
 };
 
-// GET /api/friends/get-overall-balance/:userId
+// GET /api/friends/get-overall-balance
 export const getOverallBalance = async (req, res) => {
-    const userId = req.params.userId;
+    const userId = req.user.id;
 
     try {
         let totalIOwe = 0;
@@ -149,7 +144,6 @@ export const getOverallBalance = async (req, res) => {
         for (const record of balances) {
             const { user1, user2, balance } = record;
 
-            // Schema: user2 owes user1 the balance amount
             if (user1.toString() === userId) {
                 // YOU are user1 → user2 owes YOU
                 totalTheyOwe += balance;

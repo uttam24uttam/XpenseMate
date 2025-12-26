@@ -5,35 +5,38 @@ import Transaction from "../models/transaction.js";
 import moment from "moment";
 import { cacheUtils } from '../config/redis.js';
 
-// update friend balance
+
+// // update friend balance
+
 const updateFriendBalance = async (fromUser, toUser, amount, session = null) => {
     const [u1, u2] = [fromUser, toUser].sort();
-    const isOriginalOrder = u1 === fromUser;
+    const isOriginalOrder = u1 === fromUser; // u1 is the one who OWES money
 
     let record = await FriendBalance.findOne({ user1: u1, user2: u2 }).session(session);
 
     if (!record) {
-        const initialBalance = isOriginalOrder ? amount : -amount;
+        // If u1 owes, start negative. If u2 owes (u1 receives), start positive.
+        const initialBalance = isOriginalOrder ? -amount : amount;
         record = new FriendBalance({ user1: u1, user2: u2, balance: initialBalance, status: 'active' });
     } else {
         if (isOriginalOrder) {
-            record.balance += amount;
-        } else {
+            // u1 borrows more -> subtract to make it more negative
             record.balance -= amount;
+        } else {
+            // u1 gets back money -> add to make it positive
+            record.balance += amount;
         }
     }
 
     await record.save({ session });
-    //redis cache  invalidation
     await cacheUtils.invalidateBalance(fromUser, toUser);
 };
 
-// POST /api/friendTransactions/add
+// // POST /api/friendTransactions/add
 export const addFriendTransaction = async (req, res) => {
     let session = null;
     try {
         const { paidBy, payees, totalAmount, description, date, category } = req.body;
-
 
         if (!paidBy || !Array.isArray(paidBy) || paidBy.length === 0) return res.status(400).json({ message: "paidBy must be a non-empty array" });
         if (!payees || !Array.isArray(payees) || payees.length === 0) return res.status(400).json({ message: "payees must be a non-empty array" });
@@ -90,7 +93,6 @@ export const addFriendTransaction = async (req, res) => {
             session.endSession();
             res.status(201).json({ message: "Transaction added successfully", transaction: newTxn });
         } catch (txnError) {
-
             await session.abortTransaction();
             session.endSession();
             if (txnError && (txnError.code === 20 || txnError.message?.includes('Transaction numbers'))) {
@@ -108,7 +110,7 @@ export const addFriendTransaction = async (req, res) => {
                 }
                 newTxn.settlements = fallbackSettlements;
                 await newTxn.save();
-                res.status(201).json({ message: "Transaction added successfully (non-transactional)", transaction: newTxn });
+                res.status(201).json({ message: "Transaction added successfully", transaction: newTxn });
             } else {
                 throw txnError;
             }
@@ -119,9 +121,12 @@ export const addFriendTransaction = async (req, res) => {
     }
 };
 
-// GET /api/friendTransactions/transactions/:userId/:friendId
+
+// // GET /api/friendTransactions/transactions/:friendId
+
 export const getTransactions = async (req, res) => {
-    const { userId, friendId } = req.params;
+    const userId = req.user.id;
+    const { friendId } = req.params;
     try {
         const allTransactions = await FriendTransaction.find({
             $or: [
@@ -172,14 +177,15 @@ export const getTransactions = async (req, res) => {
     }
 };
 
-// GET /api/friendTransactions/balance/:userId/:friendId
+
+// // GET /api/friendTransactions/balance/:friendId
+
 export const getBalance = async (req, res) => {
     const { friendId } = req.params;
     if (!req.user || !req.user.id) return res.status(401).json({ message: "Not authorized" });
     const loggedInUserId = req.user.id;
 
     try {
-        //redis cache check
         let balance = await cacheUtils.getRawBalance(loggedInUserId, friendId);
         let user1, user2;
 
@@ -228,13 +234,15 @@ export const getBalance = async (req, res) => {
     }
 };
 
-// POST /api/friendTransactions/settle-up
+
+// // POST /api/friendTransactions/settle-up
+
 export const settleUp = async (req, res) => {
-    const { userId, friendId, settleAmount } = req.body;
+    const userId = req.user.id;
+    const { friendId, settleAmount } = req.body;
     const amount = Number(settleAmount);
 
     try {
-
         const internalSecretHeader = req.headers['x-internal-secret'];
         if (internalSecretHeader && process.env.INTERNAL_SECRET && internalSecretHeader !== process.env.INTERNAL_SECRET) {
             return res.status(403).json({ message: 'Invalid internal secret' });
@@ -253,7 +261,6 @@ export const settleUp = async (req, res) => {
         if (!payerIsCurrentUser) return res.status(400).json({ message: "You don't owe anything to this friend." });
         if (amount > amountOwed) return res.status(400).json({ message: `You can't settle more than you owe. You owe ₹${amountOwed}.` });
 
-        // Logic for applying settlement
         const applySettlement = async (rec, sess = null) => {
             if (rec.user1.toString() === userId && rec.balance < 0) rec.balance += amount;
             else if (rec.user2.toString() === userId && rec.balance > 0) rec.balance -= amount;
@@ -271,7 +278,6 @@ export const settleUp = async (req, res) => {
             await newTxn.save({ session: sess });
         };
 
-
         let session = await FriendTransaction.db.startSession();
         try {
             session.startTransaction();
@@ -283,12 +289,11 @@ export const settleUp = async (req, res) => {
         } catch (err) {
             await session.abortTransaction();
             session.endSession();
-            // Fallback for standalone
             if (err && (err.code === 20 || err.message?.includes('Transaction numbers'))) {
                 const freshRecord = await FriendBalance.findOne({ $or: [{ user1: userId, user2: friendId }, { user1: friendId, user2: userId }] });
                 await applySettlement(freshRecord);
                 await cacheUtils.invalidateBalance(userId, friendId);
-                return res.status(200).json({ message: "Settlement successful (non-transactional)." });
+                return res.status(200).json({ message: "Settlement successful." });
             }
             throw err;
         }
@@ -297,10 +302,9 @@ export const settleUp = async (req, res) => {
     }
 };
 
-// POST /api/friendTransactions/add-personal-tracking-transaction
 export const addPersonalTrackingTransaction = async (req, res) => {
     try {
-        const transactionData = { ...req.body, userId: req.body.userId || req.body.userid };
+        const transactionData = { ...req.body, userId: req.user.id };
         const newTransaction = new Transaction(transactionData);
         await newTransaction.save();
         res.status(201).send("Transaction added successfully");
