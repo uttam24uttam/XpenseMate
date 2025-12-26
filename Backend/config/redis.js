@@ -16,7 +16,6 @@ redis.on('ready', () => console.log('Redis ready'));
 redis.on('error', err => console.error('Redis error:', err.message));
 
 /**
- * - Key is symmetric
  * - Value is raw numeric balance ONLY
  * - balance > 0  → user2 owes user1
  * - balance < 0  → user1 owes user2
