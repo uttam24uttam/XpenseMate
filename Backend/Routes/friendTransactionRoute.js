@@ -6,19 +6,18 @@ import {
     settleUp,
     addPersonalTrackingTransaction
 } from '../controllers/friendTransactionController.js';
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/add", addFriendTransaction);
+router.post("/add", protect, addFriendTransaction);
 
-router.get("/transactions/:userId/:friendId", getTransactions);
+router.get("/transactions/:friendId", protect, getTransactions);
 
-router.get("/balance/:userId/:friendId", getBalance);
+router.get("/balance/:friendId", protect, getBalance);
 
-router.post("/settle-up", settleUp);
+router.post("/settle-up", protect, settleUp);
 
-router.post("/add-personal-tracking-transaction", addPersonalTrackingTransaction);
+router.post("/add-personal-tracking-transaction", protect, addPersonalTrackingTransaction);
 
 export default router;
-
-

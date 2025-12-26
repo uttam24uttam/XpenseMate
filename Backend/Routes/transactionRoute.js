@@ -10,11 +10,10 @@ const router = express.Router();
 
 router.post('/add-transaction', addTransaction);
 
-router.post('/edit-transaction', editTransaction);
+router.put('/edit-transaction', editTransaction);
 
-router.post('/delete-transaction', deleteTransaction);
+router.delete('/delete-transaction', deleteTransaction);
 
 router.post('/get-all-transactions', getAllTransactions);
 
 export default router;
-
