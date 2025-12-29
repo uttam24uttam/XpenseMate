@@ -1,0 +1,57 @@
+---
+- name: Namespace Check
+  command: "kubectl apply -f {{ k8s_dir }}/namespace.yaml"
+
+- name: Create secret via kubectl
+  shell: |
+    kubectl create secret generic splitwise-secrets \
+      --namespace={{ k8s_namespace }} \
+      --from-literal=JWT_SECRET=\"{{ secret_jwt }}\" \
+      --from-literal=MONGO_USERNAME=\"{{ secret_mongo_user }}\" \
+      --from-literal=MONGO_PASSWORD=\"{{ secret_mongo_pass }}\" \
+      --from-literal=REDIS_PASSWORD=\"{{ secret_redis_pass }}\" \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+- name: Apply Base Configurations
+  command: "kubectl apply -f {{ k8s_dir }}/configmap.yaml"
+
+- name: Apply Databases
+  command: "kubectl apply -f {{ k8s_dir }}/mongodb-statefulset.yaml"
+
+- name: Apply Redis
+  command: "kubectl apply -f {{ k8s_dir }}/redis-deployment.yaml"
+
+- name: Database readiness check
+  command: "kubectl rollout status statefulset/mongodb -n {{ k8s_namespace }} --timeout=300s"
+
+- name: Redis readiness check
+  command: "kubectl rollout status deployment/redis -n {{ k8s_namespace }} --timeout=300s"
+
+- name: Apply Backend Resources
+  command: "kubectl apply -f {{ k8s_dir }}/backend-deployment.yaml"
+
+- name: Apply Backend Service
+  command: "kubectl apply -f {{ k8s_dir }}/backend-service.yaml"
+
+- name: Apply Backend HPA
+  command: "kubectl apply -f {{ k8s_dir }}/backend-hpa.yaml"
+
+- name: Force Backend Restart
+  command: "kubectl rollout restart deployment/backend -n {{ k8s_namespace }}"
+
+- name: Apply Frontend Resources
+  command: "kubectl apply -f {{ k8s_dir }}/frontend-deployment.yaml"
+
+- name: Apply ELK Stack
+  command: "kubectl apply -f {{ k8s_dir }}/elk-stack.yaml"
+
+- name: Apply Logstash Pipeline ConfigMap
+  command: "kubectl apply -f {{ k8s_dir }}/logstash-pipeline-configmap.yaml"
+
+- name: Get deployment status
+  command: kubectl get all -n {{ k8s_namespace }}
+  register: status
+
+- name: Display status
+  debug:
+    msg: "{{ status.stdout_lines }}"
