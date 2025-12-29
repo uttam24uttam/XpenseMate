@@ -39,6 +39,8 @@
   command: "kubectl apply -f {{ k8s_dir }}/{{ item }}"
   with_items:
     - frontend-deployment.yaml
+    - frontend-service.yaml
+    - frontend-hpa.yaml
 
 
 - name: Get deployment status
